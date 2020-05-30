@@ -1,207 +1,467 @@
 from collections import deque
-import math
+import logging
 
 import gym
-from gym import spaces
-from gym.envs.registration import register
-from game import Game
 import numpy as np
 
-register(
-    id='VRPSSR-v0',
+import utils
+import game
+
+gym.envs.registration.register(
+    id='Vrpssr-v0',
     entry_point='environment:VrpssrEnv'
-)
-register(
-    id='VRPSSRTest-v0',
-    entry_point='environment:VrpssrEnvTest'
 )
 
 class VrpssrEnv(gym.Env):
+    """Defines an environment for playing the Atari-fied VRPSSR game."""
+    
     metadata = {
-        'render.modes': ['pixelgray','pixelrgb','binarystack']
+        'render.modes': ['human']
     }
 
-    def __init__(self):
-        self.game = None
-        self.type = None
-        self.rwtype = None
-        self.mask = False
+    _MOVES = [(-1,0), (0,1), (1,0), (0,-1), (0, 0)]
+    _ONE_FRAME_STATE_TYPES = ['feature_layers', 'feature_layers_nonnorm', 'classic', 'human', 'pixelrgb']
+    _BOARD_BUFFER_WIDTH = 1
+    _BOARD_TIMEBAR_HEIGHT = 2
+
+    def __init__(self, env_config):
+        """Initialize an Environment that is compatible with a game representing
+        the Atarified VRPSSR.
+
+        Args:
+            env_config (dict): A configuration for the environment (see ex below)
+
+        Example env_config:
+        {
+            'state_type': 'feature_layers',      # what type of state the agent should receive
+            'n_frames': 1,                      # how many previous videogame 'frames' to include in the state (NOTE these are not displayed in state)
+            'render_mode':'human'               # how state should be displayed
+            'seed': null,                       # seed for game randomness
+            'shape': (32,32),                   # the size of the game board
+            'depot': (16,16),                   # the location of the depot
+            'car': (16,16),                     # the location where the vehicle begins
+            'game_length': 230,                 # duration of a game
+            'cust_dist_type':'cluster3',        # how customers are distributed on the game board
+            'exp_n_cust': 30,                   # avg num customers in a game
+            'exp_n_cust0': 15,                  # avg num customers requesting service at t=0
+        }
+        # TODO add param for how much time one step consumes
+        """
+
+        self.state_type = env_config.get('state_type', default='feature_layers')
+        self.render_mode = env_config.get('render_mode', default='human')
+        self.seed = env_config.get('seed', default=None)
+        self.rng = np.random.RandomState(seed=self.seed)
+        self.n_frames = env_config.get('n_frames', default=1)
+        if self.state_type in _ONE_FRAME_STATE_TYPES:
+            if self.n_frames > 1:
+                logging.warning(f"State type {self.state_type} only supports single-frame state.")
+            self.n_frames = 1 # for feature_layers and classic, the concept of "frames" does not apply
+        self.frame_stack = deque(maxlen=self.n_frames) # holds the last nframes number of game renders
+        # NOTE we refer to game renderings as frames (bc they are often images), but they may not necessarily be
+        # for example, in the 'classic' render mode, a game frame is a dictionary of relevant data for an agent
+        # to make a decision: vehicle location, current time, depot location, locations of current (active) requests,
+        # and locations of potential requests
+        
+        
+        self.game_config = {
+            'shape': env_config.get('shape', default=(32,32)),
+            'depot': env_config.get('depot', default=(16,16)),
+            'car': env_config.get('car', default=(16,16)),
+            'game_length': env_config.get('game_length', default=230), # set in accordance with the len/time ratio of 360min:20km = 360 min:40 grid spaces
+            'cust_dist_type': env_config.get('cust_dist_type', default='cluster3'),
+            'exp_n_cust': env_config.get('exp_n_cust', default=30),
+            'exp_n_cust0': env_config.get('exp_n_cust0', default=15),
+        }
+        
+        # action space is the set of all possible moves
+        self.action_space = gym.spaces.Discrete(len(self._MOVES))
+        
+        # state space is the set of all possibly observable states
+        self.observation_space = self._get_observation_space()
+
+        self._game = None
+
         self.curr_state = None
-        self.seed = None
-        self.rng_master = None
-        self.rng_inst = None
-        self.initialized = False
-        self.frame_stack = None
-        self.nframes = None
-
-    def init(self, rtype, reward, mask, seed=None, nframes=1):
-        if reward not in ["custom", "paper", "paperlike", "linear", "piecewise", "quadratic", "reward", "mask","ndk","ndkp","ndkn"]:
-            raise ValueError("Invalid RPS")
-        
-        self.type = rtype
-        self.rwtype = reward
-        self.mask = mask
-        self.curr_state = None
-        self.seed = seed
-        self.nframes = 1 if self.type in ['binarystack','classic'] else nframes
-        
-        self.frame_stack = deque(maxlen=nframes) # holds the last nframes number of game renders
-        
-        # setup random generators
-        self.rng_master = np.random.RandomState(seed=self.seed) # to spawn seeds for other RNGs
-        self.rng_inst = np.random.RandomState(seed=self.rng_master.randint(np.iinfo(np.int32).max)) # for instance-related randomness
-        
-        self.initialized = True
-
-    def get_pi_state(self):
-        assert self.curr_state is not None, "Game must be reset in order to retrieve the init PI state"
-        return self.game.get_pi_state()
-
-    def step(self, action):
-        assert self.curr_state is not None, "Game must be reset in order to step"
-        (next_frame, reward, terminal, mask) = self.game.step(action)
-        self.frame_stack.append(next_frame)
-        self.curr_state = self._state_from_frames()
-        return self.curr_state, reward, terminal, mask
-
-    def _state_from_frames(self):
-        if self.type in ['binarystack','classic']:
-            return self.frame_stack[-1] # return just the most recent "frame"
-        else:
-            # returning a stack of frames
-            state = np.array(self.frame_stack)
-            # if we don't have as many frames as would be expected, then we repeat the most recent frame
-            if state.shape[0] < self.nframes:
-                rep_times = self.nframes - state.shape[0] # how many frames are we missing?
-                state = np.pad(state, pad_width=[(0,rep_times),(0,0),(0,0)], mode='edge') # repeat the last one that many times
-            return state
+        self._last_game_summary = None
 
     def reset(self):
-        if not self.initialized: 
-            raise RuntimeError("Environment must first be initialized.")
+        """Launches a new game.
+
+        Returns:
+            obs: The inital state of the environment
+        """
         
+        # initialize a game
+        self._game = game.VrpssrGame(self.game_config,self.rng)
+        self._game.generate_game()
+        
+        # reset the stack of most recent game frames
         self.frame_stack.clear()
-        
-        self._generate_game()
-        
-        new_frame = self.game.render()
+
+        # retrieve the first game frame, append it to the frame stack
+        new_frame = self._show_game(mode=self.state_type)
         self.frame_stack.append(new_frame)
-        self.curr_state = self._state_from_frames()
+        
+        # get the state from the stack of game frames
+        self.curr_state = self._get_state_from_frames()
         
         return self.curr_state
 
-    def _generate_game(self):
-        
-        def _locate_customer(rng, size, dist_type, big=40, small=30):
-            """Places a customer on the game board following the method described
-            in Ulmer et al (2017).
-            """
-            
+    def step(self, action):
+        """Advances the environment based on the new action
 
-            if dist_type == 'random':
-                return tuple(rng.randint(0, size, size=(2,)))
-            
-            else:
-                
-                cluster_means = []
-                
-                # cluster 1 at (10,10) -- scaled down for the smaller instances
-                meanx = (big/4) * (1 if size==big else 0.75)
-                meany = meanx
-                cluster_means.append((meanx,meany))
-                
-                # cluster 2 at (10,30)
-                # meanx unchanged (still at 10)
-                meany = ((3/4)*big) * (1 if size==big else 0.75)
-                cluster_means.append((meanx,meany))
-                
-                # cluster 3 at (30,20) if need be
-                if dist_type == 'cluster3':
-                    meanx = meany # at 30
-                    meany = (big/2) * (1 if size==big else 0.75)
-                    cluster_means.append((meanx,meany))
+        Args:
+            action (int): The action taken from the current game state
 
-                # probability of which cluster a customer belongs to
-                wts = [0.5,0.5] if dist_type == 'cluster2' else [0.25,0.5,0.25]
+        Returns:
+            tuple: next_state, reward, is_terminal, info
+        """
+        assert self.curr_state is not None, "Game must be reset in order to step"
 
-                # draw a cluster in which to stick the customer
-                means = cluster_means[rng.choice(range(len(cluster_means)), p=wts)]
+        move = self._MOVES[action] # game's advance function expects the move, not the action index
+        reward = self._game.advance(move)
 
-                # randomly draw x,y near the cluster
-                # (not exactly like Ulmer et al, since this will have stddev sqrt(2) km, but close enough. 
-                # sort of necessary anyways, since we're fishing for unique int pairs, which isn't as easy as unique float pairs)
-                return int(np.rint(rng.normal(means[0],2))), int(np.rint(rng.normal(means[1],2)))
-        
-        # small,big = 30,40
-        big = 32
-        small = (3*big) // 4
+        new_frame = self._show_game(mode=self.state_type)
+        self.frame_stack.append(new_frame)
 
-        size_choices = [big] #[small,big]
-        size = self.rng_inst.choice(size_choices)
-        
-        remaining_time = (225*(big**2)) // 1000  # set in accordance with the len/time ratio of 360min:20km = 360 min:40 grid spaces
+        self.curr_state = self._get_state_from_frames()
 
-        depot_pos = (size // 2, size // 2)
-        
-        lambda_choices = [15] # [25, 50, 75]
-        cust_lambda = self.rng_inst.choice(lambda_choices)
-        
-        customer_distribution_choices = ['cluster3'] # ['random','cluster2','cluster3']
-        customer_dist = self.rng_inst.choice(customer_distribution_choices)
-        
-        customers = []
-        customer_times = []
+        if self._game.done:
+            wait_times = [
+                ((c.time_served if c.time_served is not None else self._game.game_length) - self._game.cust_req_times[c.pos])
+                for c in self._game.custs.values()]
 
-        exp_num_cust = 30
-        
-        # initizlize the number of customers newly requesting service for each time interval
-        num_requesting = np.zeros((remaining_time,), dtype=np.int32)
-        
-        num_requesting[0] = self.rng_inst.poisson(exp_num_cust - cust_lambda) # number of customers that will be requesting service initially (at t=0)
-        num_requesting[1:] = self.rng_inst.poisson(cust_lambda/(remaining_time-1), size=(remaining_time-1))
-        for i, num_custs in enumerate(num_requesting):
-            for cust in range(num_custs):
-                added = False
-                while not added:
-                    x,y = _locate_customer(self.rng_inst, size, customer_dist, big=big, small=small)
-                    if (x, y) not in customers and (x, y) != depot_pos and 0 <= x < size and 0 <= y < size:
-                        customers.append((x, y))
-                        added = True
-                customer_times.append(i)
-        
-        # if a customer's location makes it such that there is no way it could be served in time, then make it so that it never requests
-        # (essentially, just ignore impossible customers)
-        for pos,(i,time) in zip(customers, enumerate(customer_times)):
-            if time + self._manhattan_distance(depot_pos, pos) > remaining_time:
-                customer_times[i] = remaining_time
-        
-        # NOTE: customers and depot are distributed amongst the size x size grid, but agent can always explore the max size (40x40), even if smaller size (30x30) chosen
-        
-        self.game = Game(self.type, self.rwtype, (size, size), depot_pos, depot_pos, remaining_time, customers, customer_times, self.mask)
+            self._last_game_summary = {
+                'reqs_served': len([c for c in self.game.client_list.values() if c.served]),
+                'total_reqs': len([t for t in self.game.client_times.values() if t < self.game.total_time]),
+                'total_wait_time': sum(wait_times)
+            }
 
-    def render(self,render_mode=None):
-        return self.game.render(mode=render_mode)
+        return self.curr_state, reward, self._game.done, {}
+
+    def render(self,mode='human'):
+        """Provides a depiction of the current game state
+
+        Args:
+            mode (str, optional): Type of depiction desired. Defaults to 'human'.
+
+        Returns:
+            any: The depiction of the environment
+        """
+        return self._show_game(mode=mode)
 
     def close(self):
         pass
 
-    def _manhattan_distance(self, p1, p2):
-        return abs(p1[0] - p2[0]) + abs(p1[1] - p2[1]) # TODO could be improved: np.linalg.norm(p1-p2, 1)
+    def get_episode_summary(self) -> dict:
+        """Retrieve stats about the last completed game.
 
-    def get_max_score(self):
-        return self.game.max_score
+        Raises:
+            ValueError: If no game has been completed.
 
-    def get_total_custs(self):
-        return self.game.total_servable_custs
+        Returns:
+            dict: Summary stats of the last completed game. Keys are metric names, values are their values.
+        """
+        
+        if self._last_game_summary is None:
+            raise ValueError("No completed game information available.")
+        return self._last_game_summary
+
+    def _get_state_from_frames(self):
+        """Given the current memory of game states in the frame stack, provides an observation
+        compatible with the observation_space.
+
+        Returns:
+            any: An observation of the current game state
+        """
+        
+        if self.state_type in _ONE_FRAME_STATE_TYPES:
+            return self.frame_stack[-1] # return just the most recent "frame"
+        
+        else:
+            # returning a stack of frames
+            state = np.array(self.frame_stack)
+            # if we don't have as many frames as would be expected, then we repeat the most recent frame
+            if state.shape[0] < self.n_frames:
+                rep_times = self.n_frames - len(self.frame_stack) # how many frames are we missing?
+                state = np.pad(state, pad_width=[(0,rep_times),(0,0),(0,0)], mode='edge') # repeat the last one that many times
+            return state
+
+    def _get_observation_space(self):
+        """Defines the observation space for the configuration.
+
+        Raises:
+            ValueError: If the environment was configured with an invalid state type
+
+        Returns:
+            gym.Space: The observation space
+        """
+
+        # for drawn state types (human and pixelgray), the shape needs to include the border and time bar
+        drawn_game_size = np.array(self.game_config['shape']) + 2*self._BOARD_BUFFER_WIDTH      # add borders
+        drawn_game_size = drawn_game_size[1] + self._BOARD_TIMEBAR_HEIGHT                       # and time bar
+        drawn_game_shape = tuple(drawn_game_size)
+
+        if self.state_type == 'human':
+            # game board, with a layer for RGB
+            return gym.spaces.Box(low=0, high=255, shape=(drawn_game_shape + (3,)))
+        
+        elif self.state_type == 'pixelgray':
+            # the last n_frames game boards
+            return gym.spaces.Box(low=0, high=255, shape=((self.n_frames,) + drawn_game_shape))
+        
+        elif self.state_type == 'feature_layers':
+            # (game board for [vehicle, potential & active custs], relative time remaining)
+            return gym.spaces.Tuple(
+                gym.spaces.Box(low=0, high=1, shape=((3,) + self.game_config['shape'])),
+                gym.spaces.Box(low=0, high=1)
+            )
+        
+        elif self.state_type == 'feature_layers_nonnorm':
+            # same as feature_layers, except the values in the feature layers are 0,255 rather than 0,1
+            return gym.spaces.Tuple(
+                gym.spaces.Box(low=0, high=255, shape=((3,) + self.game_config['shape'])),
+                gym.spaces.Box(low=0, high=1)
+            )
+        
+        elif self.state_type == 'classic':
+            # define the max values positions can take
+            space_extent = np.array([self.game_config['shape'][0],self.game_config['shape'][1]]) - 1
+            return gym.spaces.Dict({
+                'car':gym.spaces.Box(low=np.array([0,0]), high=space_extent),
+                'depot':gym.spaces.Box(low=np.array([0,0]), high=space_extent),
+                'curr_cust':gym.spaces.Box(low=0, high=1, shape=((3,) + self.game_config['shape'])),
+                'potential_cust':gym.spaces.Box(low=0, high=1, shape=((3,) + self.game_config['shape'])),
+                'time':gym.spaces.Box(low=0, high=self.game_config['game_length'], shape=(1,)),
+                'remaining_time':gym.spaces.Box(low=0, high=self.game_config['game_length'], shape=(1,))
+            })
+        
+        else:
+            raise ValueError(f"Unsupported state type: {self.state_type}")
+
+    def _show_game(self, mode):
+        """Provide a depiction of the current game state.
+
+        Args:
+            mode (str): Type of state depiction to use. Options: 'pixelgray', 'human', 'feature_layers', 'feature_layers_nonnorm', and 'classic'
+
+        Raises:
+            ValueError: If an invalid mode type is provided
+
+        Returns:
+            any: The mode-dependent state depiction
+        """
+
+        if render_mode == "pixelgray":
+            return self.render_pixel(mode='grayscale')
+        
+        elif render_mode == "human":
+            return self.render_pixel(mode="rgb")
+        
+        elif render_mode == "feature_layers":
+            return self._pixel_render_feature_layers()
+        
+        elif render_mode == "feature_layers_nonnorm":
+            return self._pixel_render_feature_layers(normalize=False)
+        
+        elif render_mode == 'classic':
+            return self.render_classic()
+        
+        else:
+            raise ValueError("Invalid render type")
     
-    def get_episode_summary(self):
-        summary = {}
-        summary['reqs_served'] = len([c for c in self.game.client_list.values() if c.served])
-        summary['total_reqs'] = len([t for t in self.game.client_times.values() if t < self.game.total_time])
-        # wait times include 0s for customers that never requested; this is fine since
-        # we're reporting total wait times
-        wait_times = [
-            ((c.time_served if c.time_served is not None else self.game.total_time) - self.game.client_times[c.pos])
-            for c in self.game.client_list.values()]
-        summary['total_wait_time'] = sum(wait_times)
-        return summary
+    def render_pixel(self, mode='grayscale'):
+        """Provides a visual (pixel-based) representation of the current game state.
+
+        Args:
+            mode (str, optional): Type of coloring to use ('rgb' or 'grayscale'). Defaults to 'grayscale'.
+
+        Returns:
+            np.array: A canvas depicting the current game state. Canvas is 3D if mode=='rgb' (2D otherwise)
+        """
+        
+        grayscale = mode != 'rgb'
+        
+        # define colors of objects in the frame
+        if grayscale:
+            # numerically distinct "colors" in the grayscale spectrum
+            colors = {
+                'base': 0, # black base
+                'depot':80,
+                'cust_potential':100,
+                'car':255, # white car
+                'cust_active':240
+            }
+        
+        else:
+            # visually distinct colors in the RGB spectrum
+            colors = {
+                'base': 224, # light gray base
+                'depot':(51, 51, 255), # depot:  blue
+                'cust_potential':(255, 187, 51), # potential customers: yellow
+                'car':(255, 51, 153), # car: pink
+                'cust_active':(119, 255, 51) # active customers: green
+            }
+        
+        # drawing order:
+        # base, depot, potential, car, active
+        
+        # establish canvas, color the base
+        canvas = np.ones(
+            shape=(self._game.shape if grayscale else (self._game.shape+(3,))),
+            dtype=np.uint8) * colors['base']
+        
+        # color the depot
+        canvas[self._game.depot_pos[0],self._game.depot_pos[1],...] = colors['depot']
+        
+        # potential customers
+        for c in self._game.custs.values():
+            if not c.hide:
+                if not c.served and not c.requested: # unrequested and unserved
+                    canvas[c.pos[0],c.pos[1],...] = colors['cust_potential']
+        
+        # car is a 3x3 marking (with its middle hollowed out)
+        # when the car is on the edge, its mark will spill out into the buffer,
+        # so we'll add that before coloring the car
+        buff_width = self._BOARD_BUFFER_WIDTH
+        buff_color = 0 # let the border be black
+        if grayscale:
+            canvas = np.pad(canvas, pad_width=((buff_width,buff_width),), mode='constant', constant_values=buff_color)
+        else:
+            canvas = np.pad(canvas, pad_width=((buff_width,buff_width),(buff_width,buff_width),(0,0)), mode='constant', constant_values=buff_color)
+
+        # canvas added, color the car's mark
+        self._add_car_to_canvas(self._game.car_pos, colors['car'], canvas, buff_width)
+
+        # active customers
+        for c in self._game.custs.values():
+            if not c.hide:
+                if not c.served and c.requested: # requested and unserved
+                    canvas[c.pos[0]+buff_width,c.pos[1]+buff_width,...] = colors['cust_active']
+        
+        canvas = np.rot90(canvas,k=1,axes=(0,1))
+        
+        time_bar_color = 100
+        canvas = self._add_time_bar(canvas, buff_color, time_bar_color)
+
+        return canvas
+    
+    def _add_car_to_canvas(self, car_pos, car_color, canvas, w_buff):
+        """Adds the car to the canvas. The car is represented as a 3x3 square with a hole in the middle.
+
+        Args:
+            car_pos (tuple): (x,y) of the car's location
+            car_color (int or tuple): The color of the car. Either an (r,g,b) tuple or an int (grayscale or identical rgb vals)
+            canvas (np.array): The canvas on which to add the car
+            w_buff (int): The width of the buffer surrounding the playable area on the canvas
+
+        Returns:
+            np.array: The canvas with the vehicle.
+        """
+        
+        # where is the car centered
+        center = [car_pos[0]+w_buff, car_pos[1]+w_buff]
+        # retrieve the canvas's current color there
+        center_color = canvas[tuple(center)]
+        # color all the surrounding elements (incl the center)
+        canvas[center[0]-1:center[0]+2, center[1]-1:center[1]+2,...] = car_color
+        # "hollow out" the center by restoring it to its previous value
+        canvas[tuple(center)] = center_color
+        
+        return canvas
+    
+    def _add_time_bar(self, canvas, base_color, bar_color):
+        """Returns a canvas where a time bar has been added to its "top" (visually).
+
+        Args:
+            canvas (np.array): The canvas on which to draw the time bar
+            base_color (int): Color value of the part of the time bar that is depleted
+            bar_color (int): Color value of the part of the time bar that remains
+
+        Returns:
+            np.array: A canvas with an added time bar
+        """
+        
+        time_bar = (np.arange(canvas.shape[0]) < ((self._game.remaining_time/self._game.game_length) * canvas.shape[0])).astype(np.uint8)
+        time_bar = np.where(time_bar>0, bar_color, base_color)[None,:] # establish a single-row version of the time bar
+        time_bar = np.tile(time_bar, (self._BOARD_TIMEBAR_HEIGHT,1)) # make it the desired height
+        
+        if canvas.ndim == 2:
+            # grayscale
+            return np.vstack([time_bar,canvas])
+
+        else:
+            # rgb
+            return np.concatenate([np.tile(time_bar[...,None],(1,1,3)),canvas],axis=0)
+
+    def _pixel_render_feature_layers(self,normalize=True):
+        """Provides a feature-layer representation of the current game state
+
+        Args:
+            normalize (bool, optional): Whether all output values should be in [0,1] (otherwise in [0,255]). Defaults to True.
+
+        Returns:
+            tuple (np.array, float): [feature-layers for the vehicle, potential customers, active customers], the relative time remaining
+        """
+        
+        canvas = np.zeros([3, self._game.shape[0], self._game.shape[1]], dtype=np.float32) # arrays: car, client.potential, client.active; scalar: time
+        # Entities
+        car = self._game.car_pos
+        depot = self._game.depot_pos
+        canvas[0,car[0],car[1]] = 1
+        for c in self._game.custs.values():
+            # ignore served customers
+            if not (c.served or c.hide):
+                pos = c.pos
+                # active customer
+                if c.requested:
+                    canvas[2,pos[0],pos[1]] = 1
+                # potential customer not yet requesting
+                else:
+                    canvas[1,pos[0],pos[1]] = 1
+        
+        if not normalize:
+            canvas = canvas * 255
+
+        return canvas, self._game.remaining_time / self._game.game_length
+
+    def render_classic(self):
+        """Provides a "classic" representation of the current game state.
+        
+        Note that it isn't purely classical, since some of the information returned is
+        provided visually.
+
+        Returns:
+            dict: all potentially-relevant state information:
+                - the car's location ("car"),
+                - the depot's location ("depot"),
+                - an array of the manhattan-grid with 1s at locations with current active customers ("curr_cust"),
+                - same type of array for the potential customers ("potential_cust"),
+                - the current time ("time"),
+                - and the remaining time ("remaining_time").
+        """
+        
+        # most info ready to send off, but we must first make the customer grid arrays
+        
+        # get list of current customer positions
+        curr_cust_list = [c.pos for c in self._game.custs.values() if (c.requested and not (c.served or c.hide))]
+        # split into list of x-coords and y-coords
+        curr_cust_coords = [[e[0] for e in curr_cust_list],[e[1] for e in curr_cust_list]]
+        # turn into feature-layer-like grids
+        curr_cust_grid = np.zeros(self.game_config['shape'])
+        curr_cust_grid[curr_cust_coords] = 1
+        # same process for potential customers
+        potential_cust_list = [c.pos for c in self._game.custs.values() if (not c.requested and not (c.served or c.hide))]
+        potential_cust_coords = [[e[0] for e in potential_cust_list],[e[1] for e in potential_cust_list]]
+        potential_cust_grid = np.zeros(self.game_config['shape'])
+        potential_cust_grid[potential_cust_coords] = 1
+        
+        return {
+            'car': [self._game.car_pos],
+            'depot': [self._game.depot_pos],
+            'curr_cust':curr_cust_grid,
+            'potential_cust':potential_cust_grid,
+            'time':[self._game.curr_time],
+            'remaining_time':[self._game.remaining_time]
+        }
