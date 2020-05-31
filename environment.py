@@ -35,7 +35,6 @@ class VrpssrEnv(gym.Env):
         {
             'state_type': 'feature_layers',      # what type of state the agent should receive
             'n_frames': 1,                      # how many previous videogame 'frames' to include in the state (NOTE these are not displayed in state)
-            'render_mode':'human'               # how state should be displayed
             'seed': null,                       # seed for game randomness
             'shape': (32,32),                   # the size of the game board
             'depot': (16,16),                   # the location of the depot
@@ -49,7 +48,6 @@ class VrpssrEnv(gym.Env):
         """
 
         self.state_type = env_config.get('state_type', 'feature_layers')
-        self.render_mode = env_config.get('render_mode', 'human')
         self.seed = env_config.get('seed', None)
         self.rng = np.random.RandomState(seed=self.seed)
         self.n_frames = env_config.get('n_frames', 1)
@@ -140,7 +138,7 @@ class VrpssrEnv(gym.Env):
 
         return self.curr_state, reward, self._game.done, {}
 
-    def render(self,mode='human'):
+    def render(self, mode='human'):
         """Provides a depiction of the current game state
 
         Args:
@@ -151,7 +149,7 @@ class VrpssrEnv(gym.Env):
         """
         return self._show_game(mode=mode)
 
-    def close(self):
+    def close(self) -> None:
         pass
 
     def get_episode_summary(self) -> dict:
@@ -198,7 +196,7 @@ class VrpssrEnv(gym.Env):
             gym.Space: The observation space
         """
 
-        # for drawn state types (human and pixelgray), the shape needs to include the border and time bar
+        # for drawn state types (human and humangray), the shape needs to include the border and time bar
         drawn_game_size = np.array(self.game_config['shape']) + 2*self._BOARD_BUFFER_WIDTH      # add borders
         drawn_game_size[1] = drawn_game_size[1] + self._BOARD_TIMEBAR_HEIGHT                    # and time bar
         drawn_game_shape = tuple(drawn_game_size)
@@ -207,7 +205,7 @@ class VrpssrEnv(gym.Env):
             # game board, with a layer for RGB
             return gym.spaces.Box(low=0, high=255, shape=(drawn_game_shape + (3,)))
         
-        elif self.state_type == 'pixelgray':
+        elif self.state_type == 'humangray':
             # the last n_frames game boards
             return gym.spaces.Box(low=0, high=255, shape=((self.n_frames,) + drawn_game_shape))
         
@@ -244,7 +242,7 @@ class VrpssrEnv(gym.Env):
         """Provide a depiction of the current game state.
 
         Args:
-            mode (str): Type of state depiction to use. Options: 'pixelgray', 'human', 'feature_layers', 'feature_layers_nonnorm', and 'classic'
+            mode (str): Type of state depiction to use. Options: 'humangray', 'human', 'feature_layers', 'feature_layers_nonnorm', and 'classic'
 
         Raises:
             ValueError: If an invalid mode type is provided
@@ -253,19 +251,19 @@ class VrpssrEnv(gym.Env):
             any: The mode-dependent state depiction
         """
 
-        if render_mode == "pixelgray":
+        if mode == "humangray":
             return self._render_pixel(mode='grayscale')
         
-        elif render_mode == "human":
+        elif mode == "human":
             return self._render_pixel(mode="rgb")
         
-        elif render_mode == "feature_layers":
+        elif mode == "feature_layers":
             return self._render_feature_layers()
         
-        elif render_mode == "feature_layers_nonnorm":
+        elif mode == "feature_layers_nonnorm":
             return self._render_feature_layers(normalize=False)
         
-        elif render_mode == 'classic':
+        elif mode == 'classic':
             return self._render_classic()
         
         else:
@@ -317,9 +315,8 @@ class VrpssrEnv(gym.Env):
         
         # potential customers
         for c in self._game.custs.values():
-            if not c.hide:
-                if not c.served and not c.requested: # unrequested and unserved
-                    canvas[c.pos[0],c.pos[1],...] = colors['cust_potential']
+            if not (c.served or c.hide) and not c.requested: # unrequested and unserved
+                canvas[c.pos[0],c.pos[1],...] = colors['cust_potential']
         
         # car is a 3x3 marking (with its middle hollowed out)
         # when the car is on the edge, its mark will spill out into the buffer,
@@ -447,13 +444,13 @@ class VrpssrEnv(gym.Env):
         # get list of current customer positions
         curr_cust_list = [c.pos for c in self._game.custs.values() if (c.requested and not (c.served or c.hide))]
         # split into list of x-coords and y-coords
-        curr_cust_coords = [[e[0] for e in curr_cust_list],[e[1] for e in curr_cust_list]]
+        curr_cust_coords = ([e[0] for e in curr_cust_list],[e[1] for e in curr_cust_list])
         # turn into feature-layer-like grids
         curr_cust_grid = np.zeros(self.game_config['shape'])
         curr_cust_grid[curr_cust_coords] = 1
         # same process for potential customers
         potential_cust_list = [c.pos for c in self._game.custs.values() if (not c.requested and not (c.served or c.hide))]
-        potential_cust_coords = [[e[0] for e in potential_cust_list],[e[1] for e in potential_cust_list]]
+        potential_cust_coords = ([e[0] for e in potential_cust_list],[e[1] for e in potential_cust_list])
         potential_cust_grid = np.zeros(self.game_config['shape'])
         potential_cust_grid[potential_cust_coords] = 1
         

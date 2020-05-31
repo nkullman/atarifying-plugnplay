@@ -1,3 +1,5 @@
+import numpy as np
+
 import utils
 
 class Client:
@@ -77,7 +79,7 @@ class VrpssrGame:
             # randomly draw x,y near the cluster
             # (not exactly like Ulmer et al, since this will have stddev sqrt(2), but close enough. 
             # sort of necessary anyways, since we're fishing for unique int pairs, which isn't as easy as unique float pairs)
-            return self.rng.randint(self.rng.normal(means[0],2)), self.rng.randint(self.rng.normal(means[1],2))
+            return int(np.rint(self.rng.normal(means[0],2))), int(np.rint(self.rng.normal(means[1],2)))
     
     def generate_game(self):
         
