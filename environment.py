@@ -360,9 +360,9 @@ class VrpssrEnv(gym.Env):
         # where is the car centered
         center = [car_pos[0]+w_buff, car_pos[1]+w_buff]
         # retrieve the canvas's current color there
-        center_color = canvas[tuple(center)]
+        center_color = np.array(canvas[tuple(center)])
         # color all the surrounding elements (incl the center)
-        canvas[center[0]-1:center[0]+2, center[1]-1:center[1]+2,...] = car_color
+        canvas[center[0]-1:center[0]+2, center[1]-1:center[1]+2, ...] = car_color
         # "hollow out" the center by restoring it to its previous value
         canvas[tuple(center)] = center_color
         
