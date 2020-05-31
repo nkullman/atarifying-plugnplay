@@ -203,36 +203,36 @@ class VrpssrEnv(gym.Env):
 
         if self.state_type == 'human':
             # game board, with a layer for RGB
-            return gym.spaces.Box(low=0, high=255, shape=(drawn_game_shape + (3,)))
+            return gym.spaces.Box(low=0, high=255, shape=(drawn_game_shape + (3,)), dtype=np.int32)
         
         elif self.state_type == 'humangray':
             # the last n_frames game boards
-            return gym.spaces.Box(low=0, high=255, shape=((self.n_frames,) + drawn_game_shape))
+            return gym.spaces.Box(low=0, high=255, shape=((self.n_frames,) + drawn_game_shape), dtype=np.int32)
         
         elif self.state_type == 'feature_layers':
             # (game board for [vehicle, potential & active custs], relative time remaining)
             return gym.spaces.Tuple((
-                gym.spaces.Box(low=0, high=1, shape=((3,) + self.game_config['shape'])),
-                gym.spaces.Box(low=0, high=1, shape=(1,))
+                gym.spaces.Box(low=0, high=1, shape=((3,) + self.game_config['shape']), dtype=np.int32),
+                gym.spaces.Box(low=0, high=1, shape=(1,), dtype=np.float32)
             ))
         
         elif self.state_type == 'feature_layers_nonnorm':
             # same as feature_layers, except the values in the feature layers are 0,255 rather than 0,1
             return gym.spaces.Tuple((
-                gym.spaces.Box(low=0, high=255, shape=((3,) + self.game_config['shape'])),
-                gym.spaces.Box(low=0, high=1, shape=(1,))
+                gym.spaces.Box(low=0, high=255, shape=((3,) + self.game_config['shape']), dtype=np.int32),
+                gym.spaces.Box(low=0, high=1, shape=(1,), dtype=np.float32)
             ))
         
         elif self.state_type == 'classic':
             # define the max values positions can take
             space_extent = np.array([self.game_config['shape'][0],self.game_config['shape'][1]]) - 1
             return gym.spaces.Dict({
-                'car':gym.spaces.Box(low=np.array([0,0]), high=space_extent),
-                'depot':gym.spaces.Box(low=np.array([0,0]), high=space_extent),
-                'curr_cust':gym.spaces.Box(low=0, high=1, shape=((3,) + self.game_config['shape'])),
-                'potential_cust':gym.spaces.Box(low=0, high=1, shape=((3,) + self.game_config['shape'])),
-                'time':gym.spaces.Box(low=0, high=self.game_config['game_length'], shape=(1,)),
-                'remaining_time':gym.spaces.Box(low=0, high=self.game_config['game_length'], shape=(1,))
+                'car':gym.spaces.Box(low=np.array([0,0]), high=space_extent, dtype=np.int32),
+                'depot':gym.spaces.Box(low=np.array([0,0]), high=space_extent, dtype=np.int32),
+                'curr_cust':gym.spaces.Box(low=0, high=1, shape=((3,) + self.game_config['shape']), dtype=np.int32),
+                'potential_cust':gym.spaces.Box(low=0, high=1, shape=((3,) + self.game_config['shape']), dtype=np.int32),
+                'time':gym.spaces.Box(low=0, high=self.game_config['game_length'], shape=(1,), dtype=np.int32),
+                'remaining_time':gym.spaces.Box(low=0, high=self.game_config['game_length'], shape=(1,), dtype=np.int32)
             })
         
         else:
