@@ -148,7 +148,7 @@ class VrpssrGame:
             if c.requested and not (c.served or c.hide):
                 c.served = True
                 c.time_served = self.curr_time
-                reward += SERVICE_REWARD
+                reward += self._SERVICE_REWARD
 
         # if getting close to the end of the horizon, mark customers that can no longer be served in time
         # only need to do this check when time is getting close.

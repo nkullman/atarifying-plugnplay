@@ -20,7 +20,7 @@ class VrpssrEnv(gym.Env):
     }
 
     _MOVES = [(-1,0), (0,1), (1,0), (0,-1), (0, 0)]
-    _ONE_FRAME_STATE_TYPES = ['feature_layers', 'feature_layers_nonnorm', 'classic', 'human', 'pixelrgb']
+    _ONE_FRAME_STATE_TYPES = ['feature_layers', 'feature_layers_nonnorm', 'classic', 'human']
     _BOARD_BUFFER_WIDTH = 1
     _BOARD_TIMEBAR_HEIGHT = 2
 
@@ -48,12 +48,12 @@ class VrpssrEnv(gym.Env):
         # TODO add param for how much time one step consumes
         """
 
-        self.state_type = env_config.get('state_type', default='feature_layers')
-        self.render_mode = env_config.get('render_mode', default='human')
-        self.seed = env_config.get('seed', default=None)
+        self.state_type = env_config.get('state_type', 'feature_layers')
+        self.render_mode = env_config.get('render_mode', 'human')
+        self.seed = env_config.get('seed', None)
         self.rng = np.random.RandomState(seed=self.seed)
-        self.n_frames = env_config.get('n_frames', default=1)
-        if self.state_type in _ONE_FRAME_STATE_TYPES:
+        self.n_frames = env_config.get('n_frames', 1)
+        if self.state_type in self._ONE_FRAME_STATE_TYPES:
             if self.n_frames > 1:
                 logging.warning(f"State type {self.state_type} only supports single-frame state.")
             self.n_frames = 1 # for feature_layers and classic, the concept of "frames" does not apply
@@ -65,13 +65,13 @@ class VrpssrEnv(gym.Env):
         
         
         self.game_config = {
-            'shape': env_config.get('shape', default=(32,32)),
-            'depot': env_config.get('depot', default=(16,16)),
-            'car': env_config.get('car', default=(16,16)),
-            'game_length': env_config.get('game_length', default=230), # set in accordance with the len/time ratio of 360min:20km = 360 min:40 grid spaces
-            'cust_dist_type': env_config.get('cust_dist_type', default='cluster3'),
-            'exp_n_cust': env_config.get('exp_n_cust', default=30),
-            'exp_n_cust0': env_config.get('exp_n_cust0', default=15),
+            'shape': env_config.get('shape', (32,32)),
+            'depot': env_config.get('depot', (16,16)),
+            'car': env_config.get('car', (16,16)),
+            'game_length': env_config.get('game_length', 230), # set in accordance with the len/time ratio of 360min:20km = 360 min:40 grid spaces
+            'cust_dist_type': env_config.get('cust_dist_type', 'cluster3'),
+            'exp_n_cust': env_config.get('exp_n_cust', 30),
+            'exp_n_cust0': env_config.get('exp_n_cust0', 15),
         }
         
         # action space is the set of all possible moves
@@ -176,7 +176,7 @@ class VrpssrEnv(gym.Env):
             any: An observation of the current game state
         """
         
-        if self.state_type in _ONE_FRAME_STATE_TYPES:
+        if self.state_type in self._ONE_FRAME_STATE_TYPES:
             return self.frame_stack[-1] # return just the most recent "frame"
         
         else:
@@ -200,7 +200,7 @@ class VrpssrEnv(gym.Env):
 
         # for drawn state types (human and pixelgray), the shape needs to include the border and time bar
         drawn_game_size = np.array(self.game_config['shape']) + 2*self._BOARD_BUFFER_WIDTH      # add borders
-        drawn_game_size = drawn_game_size[1] + self._BOARD_TIMEBAR_HEIGHT                       # and time bar
+        drawn_game_size[1] = drawn_game_size[1] + self._BOARD_TIMEBAR_HEIGHT                    # and time bar
         drawn_game_shape = tuple(drawn_game_size)
 
         if self.state_type == 'human':
@@ -213,17 +213,17 @@ class VrpssrEnv(gym.Env):
         
         elif self.state_type == 'feature_layers':
             # (game board for [vehicle, potential & active custs], relative time remaining)
-            return gym.spaces.Tuple(
+            return gym.spaces.Tuple((
                 gym.spaces.Box(low=0, high=1, shape=((3,) + self.game_config['shape'])),
-                gym.spaces.Box(low=0, high=1)
-            )
+                gym.spaces.Box(low=0, high=1, shape=(1,))
+            ))
         
         elif self.state_type == 'feature_layers_nonnorm':
             # same as feature_layers, except the values in the feature layers are 0,255 rather than 0,1
-            return gym.spaces.Tuple(
+            return gym.spaces.Tuple((
                 gym.spaces.Box(low=0, high=255, shape=((3,) + self.game_config['shape'])),
-                gym.spaces.Box(low=0, high=1)
-            )
+                gym.spaces.Box(low=0, high=1, shape=(1,))
+            ))
         
         elif self.state_type == 'classic':
             # define the max values positions can take
@@ -254,24 +254,24 @@ class VrpssrEnv(gym.Env):
         """
 
         if render_mode == "pixelgray":
-            return self.render_pixel(mode='grayscale')
+            return self._render_pixel(mode='grayscale')
         
         elif render_mode == "human":
-            return self.render_pixel(mode="rgb")
+            return self._render_pixel(mode="rgb")
         
         elif render_mode == "feature_layers":
-            return self._pixel_render_feature_layers()
+            return self._render_feature_layers()
         
         elif render_mode == "feature_layers_nonnorm":
-            return self._pixel_render_feature_layers(normalize=False)
+            return self._render_feature_layers(normalize=False)
         
         elif render_mode == 'classic':
-            return self.render_classic()
+            return self._render_classic()
         
         else:
             raise ValueError("Invalid render type")
     
-    def render_pixel(self, mode='grayscale'):
+    def _render_pixel(self, mode='grayscale'):
         """Provides a visual (pixel-based) representation of the current game state.
 
         Args:
@@ -395,7 +395,7 @@ class VrpssrEnv(gym.Env):
             # rgb
             return np.concatenate([np.tile(time_bar[...,None],(1,1,3)),canvas],axis=0)
 
-    def _pixel_render_feature_layers(self,normalize=True):
+    def _render_feature_layers(self,normalize=True):
         """Provides a feature-layer representation of the current game state
 
         Args:
@@ -424,9 +424,9 @@ class VrpssrEnv(gym.Env):
         if not normalize:
             canvas = canvas * 255
 
-        return canvas, self._game.remaining_time / self._game.game_length
+        return canvas, [self._game.remaining_time / self._game.game_length]
 
-    def render_classic(self):
+    def _render_classic(self):
         """Provides a "classic" representation of the current game state.
         
         Note that it isn't purely classical, since some of the information returned is
