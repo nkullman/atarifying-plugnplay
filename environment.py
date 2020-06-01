@@ -36,7 +36,7 @@ class VrpssrEnv(gym.Env):
             'state_type': 'feature_layers',      # what type of state the agent should receive
             'n_frames': 1,                      # how many previous videogame 'frames' to include in the state (NOTE these are not displayed in state)
             'seed': null,                       # seed for game randomness
-            'shape': (32,32),                   # the size of the game board
+            'shape': (32,32),                   # the size of the game board (width, height)
             'depot': (16,16),                   # the location of the depot
             'car': (16,16),                     # the location where the vehicle begins
             'game_length': 230,                 # duration of a game
@@ -197,8 +197,10 @@ class VrpssrEnv(gym.Env):
         """
 
         # for drawn state types (human and humangray), the shape needs to include the border and time bar
-        drawn_game_size = np.array(self.game_config['shape']) + 2*self._BOARD_BUFFER_WIDTH      # add borders
-        drawn_game_size[1] = drawn_game_size[1] + self._BOARD_TIMEBAR_HEIGHT                    # and time bar
+        # first, shape tuple needs to be flipped since we rotate the image prior to rendering
+        drawn_game_size = np.flip(self.game_config['shape'])
+        drawn_game_size += 2*self._BOARD_BUFFER_WIDTH                           # add border pixels
+        drawn_game_size[0] = drawn_game_size[0] + self._BOARD_TIMEBAR_HEIGHT    # and time bar pixels
         drawn_game_shape = tuple(drawn_game_size)
 
         if self.state_type == 'human':
@@ -229,10 +231,10 @@ class VrpssrEnv(gym.Env):
             return gym.spaces.Dict({
                 'car':gym.spaces.Box(low=np.array([0,0]), high=space_extent, dtype=np.int32),
                 'depot':gym.spaces.Box(low=np.array([0,0]), high=space_extent, dtype=np.int32),
-                'curr_cust':gym.spaces.Box(low=0, high=1, shape=((3,) + self.game_config['shape']), dtype=np.int32),
-                'potential_cust':gym.spaces.Box(low=0, high=1, shape=((3,) + self.game_config['shape']), dtype=np.int32),
-                'time':gym.spaces.Box(low=0, high=self.game_config['game_length'], shape=(1,), dtype=np.int32),
-                'remaining_time':gym.spaces.Box(low=0, high=self.game_config['game_length'], shape=(1,), dtype=np.int32)
+                'curr_cust':gym.spaces.Box(low=0, high=1, shape=self.game_config['shape'], dtype=np.int32),
+                'potential_cust':gym.spaces.Box(low=0, high=1, shape=self.game_config['shape'], dtype=np.int32),
+                'time':gym.spaces.Box(low=0, high=self.game_config['game_length'], shape=(1,), dtype=np.float32),
+                'remaining_time':gym.spaces.Box(low=0, high=self.game_config['game_length'], shape=(1,), dtype=np.float32)
             })
         
         else:
@@ -308,7 +310,7 @@ class VrpssrEnv(gym.Env):
         # establish canvas, color the base
         canvas = np.ones(
             shape=(self._game.shape if grayscale else (self._game.shape+(3,))),
-            dtype=np.uint8) * colors['base']
+            dtype=np.int32) * colors['base']
         
         # color the depot
         canvas[self._game.depot_pos[0],self._game.depot_pos[1],...] = colors['depot']
@@ -380,7 +382,7 @@ class VrpssrEnv(gym.Env):
             np.array: A canvas with an added time bar
         """
         
-        time_bar = (np.arange(canvas.shape[0]) < ((self._game.remaining_time/self._game.game_length) * canvas.shape[0])).astype(np.uint8)
+        time_bar = (np.arange(canvas.shape[1]) < ((self._game.remaining_time/self._game.game_length) * canvas.shape[1])).astype(np.int32)
         time_bar = np.where(time_bar>0, bar_color, base_color)[None,:] # establish a single-row version of the time bar
         time_bar = np.tile(time_bar, (self._BOARD_TIMEBAR_HEIGHT,1)) # make it the desired height
         
@@ -402,7 +404,7 @@ class VrpssrEnv(gym.Env):
             tuple (np.array, float): [feature-layers for the vehicle, potential customers, active customers], the relative time remaining
         """
         
-        canvas = np.zeros([3, self._game.shape[0], self._game.shape[1]], dtype=np.float32) # arrays: car, client.potential, client.active; scalar: time
+        canvas = np.zeros([3, self._game.shape[0], self._game.shape[1]], dtype=np.int32) # arrays: car, cust.potential, cust.active; scalar: time
         # Entities
         car = self._game.car_pos
         depot = self._game.depot_pos
@@ -455,10 +457,10 @@ class VrpssrEnv(gym.Env):
         potential_cust_grid[potential_cust_coords] = 1
         
         return {
-            'car': [self._game.car_pos],
-            'depot': [self._game.depot_pos],
+            'car': np.array(self._game.car_pos),
+            'depot': np.array(self._game.depot_pos),
             'curr_cust':curr_cust_grid,
             'potential_cust':potential_cust_grid,
-            'time':[self._game.curr_time],
-            'remaining_time':[self._game.remaining_time]
+            'time':np.array([self._game.curr_time]),
+            'remaining_time':np.array([self._game.remaining_time])
         }
