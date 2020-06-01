@@ -22,6 +22,11 @@ def make_image(pixel_array, filename=None):
     
     plt.imshow(pixel_array, interpolation='nearest')
     plt.axis('off')
+    
+    # if there's only one pixel array, we assume the image is grayscale
+    if pixel_array.ndim == 2:
+        plt.gray()
+
     if filename is None:
         plt.show()
     else:
