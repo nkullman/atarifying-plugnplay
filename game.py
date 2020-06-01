@@ -2,8 +2,8 @@ import numpy as np
 
 import utils
 
-class Client:
-    """Defines a client in the Atari-fied VRPSSR game.
+class Customer:
+    """Defines a customer in the Atari-fied VRPSSR game.
         
         Fields:
             pos (tuple): the (x,y) coords of the customer
@@ -53,7 +53,7 @@ class VrpssrGame:
 
         self.car_pos = None
         self.cust_req_times = {} # dict: pos tuple to time of req
-        self.custs = {} # dict: pos to client object
+        self.custs = {} # dict: pos to customer object
         self.remaining_time = -1
         self.servable_custs = None
         self.num_servable_custs = -1
@@ -95,7 +95,7 @@ class VrpssrGame:
                 while not added:
                     x,y = self._locate_customer()
                     if (x, y) not in self.custs and (x, y) != self.depot_pos and 0 <= x < self.shape[0] and 0 <= y < self.shape[1]:
-                        cl = Client((x,y))
+                        cl = Customer((x,y))
                         cl.requested = t == 0 # if requesting at t=0, then set to true; otherwise false
                         self.custs[(x,y)] = cl
                         self.cust_req_times[(x,y)] = t
@@ -138,7 +138,7 @@ class VrpssrGame:
             self.car_pos[0] + move[0] if 0 <= self.car_pos[0] + move[0] < self.shape[0] else self.car_pos[0],
             self.car_pos[1] + move[1] if 0 <= self.car_pos[1] + move[1] < self.shape[1] else self.car_pos[1])
 
-        # Update requesting clients 
+        # Update requesting customers 
         for k, c in self.custs.items():
             # mark customers that are currently requesting
             if self.cust_req_times[k] <= self.curr_time:

@@ -131,8 +131,8 @@ class VrpssrEnv(gym.Env):
                 for c in self._game.custs.values()]
 
             self._last_game_summary = {
-                'reqs_served': len([c for c in self.game.client_list.values() if c.served]),
-                'total_reqs': len([t for t in self.game.client_times.values() if t < self.game.total_time]),
+                'reqs_served': len([c for c in self._game.custs.values() if c.served]),
+                'total_reqs': len([t for t in self._game.cust_req_times.values() if t < self._game.game_length]),
                 'total_wait_time': sum(wait_times)
             }
 
