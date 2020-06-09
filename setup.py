@@ -6,4 +6,5 @@ setuptools.setup(
     author='Nicholas Kullman',
     author_email='nicholas.kullman@etu.univ-tours.fr',
     description='Atari-like playable version of the VRPSSR',
+    packages=setuptools.find_packages()
 )

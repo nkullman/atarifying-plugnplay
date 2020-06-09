@@ -1,6 +1,6 @@
 import numpy as np
 
-import utils
+from vrpssratari import utils
 
 class Customer:
     """Defines a customer in the Atari-fied VRPSSR game.

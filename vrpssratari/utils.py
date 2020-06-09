@@ -6,11 +6,11 @@ def rbg_to_gray(rgb):
     assert rgb.shape[0] == 3, "RGB array must be channels-first"
     return 0.2989 * rgb[0] + 0.5870 * rgb[1] + 0.1140 * rgb[2]
 
-def dist(p1, p2, lnorm=1):
+def dist(p1, p2, axis=None, lnorm=1):
     """Returns the distance as measured by the lnorm provided.
     Defaults to lnorm=1 (Manhattan distance).
     """
-    return np.linalg.norm(np.array(p1)-np.array(p2), lnorm)
+    return np.linalg.norm(np.array(p1)-np.array(p2), axis=axis, ord=lnorm)
 
 def make_image(pixel_array, filename=None):
     """Generate the image from the pixel array

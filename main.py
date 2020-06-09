@@ -1,7 +1,7 @@
 import numpy as np
 
-import environment
-import utils
+from vrpssratari import environment
+from vrpssratari import utils
 
 def main():
     

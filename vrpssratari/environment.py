@@ -4,8 +4,8 @@ import logging
 import gym
 import numpy as np
 
-import utils
-import game
+from vrpssratari import utils
+from vrpssratari import game
 
 gym.envs.registration.register(
     id='Vrpssr-v0',
