@@ -1,0 +1,1 @@
+from atarifying.games.vrpssr.environment import VrpssrEnv

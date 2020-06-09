@@ -1,11 +1,11 @@
 import numpy as np
 
-from vrpssratari import environment
-from vrpssratari import utils
+from atarifying.games import vrpssr
+from atarifying import utils
 
 def main():
     
-    env = environment.VrpssrEnv({'state_type':'classic'})
+    env = vrpssr.VrpssrEnv({'state_type':'classic'})
     s = env.reset()
     assert s in env.observation_space
     
