@@ -1,11 +1,14 @@
+import json
+from sys import argv
+
 import numpy as np
 
 from atarifying.games import vrpssr
 from atarifying import utils
 
-def main():
+def my_main(env_config):
     
-    env = vrpssr.VrpssrEnv({'state_type':'classic'})
+    env = vrpssr.VrpssrEnv(env_config)
     s = env.reset()
     assert s in env.observation_space
     
@@ -21,4 +24,10 @@ def main():
     print(env.get_episode_summary())
 
 if __name__ == "__main__":
-    main()
+    
+    if len(argv) > 2:
+        raise ValueError("Program takes one argument: a JSON-like environment configuration")
+    
+    env_config = {} if len(argv) < 2 else json.loads(argv[1])
+    
+    my_main(env_config)
