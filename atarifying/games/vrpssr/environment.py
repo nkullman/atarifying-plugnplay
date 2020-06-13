@@ -33,7 +33,7 @@ class VrpssrEnv(gym.Env):
 
         Example env_config:
         {
-            'state_type': 'feature_layers',      # what type of state the agent should receive
+            'state_type': 'feature_layers',     # what type of state the agent should receive
             'n_frames': 1,                      # how many previous videogame 'frames' to include in the state (NOTE these are not displayed in state)
             'seed': null,                       # seed for game randomness
             'shape': (32,32),                   # the size of the game board (width, height)
@@ -91,7 +91,7 @@ class VrpssrEnv(gym.Env):
         """
         
         # initialize a game
-        self._game = game.VrpssrGame(self.game_config,self.rng)
+        self._game = game.VrpssrGame(self.game_config, self.rng)
         self._game.generate_game()
         
         # reset the stack of most recent game frames
@@ -126,14 +126,10 @@ class VrpssrEnv(gym.Env):
         self.curr_state = self._get_state_from_frames()
 
         if self._game.done:
-            wait_times = [
-                ((c.time_served if c.time_served is not None else self._game.game_length) - self._game.cust_req_times[c.pos])
-                for c in self._game.custs.values()]
-
             self._last_game_summary = {
-                'reqs_served': len([c for c in self._game.custs.values() if c.served]),
-                'total_reqs': len([t for t in self._game.cust_req_times.values() if t < self._game.game_length]),
-                'total_wait_time': sum(wait_times)
+                'reqs_served': np.sum(self._game.served),
+                'total_reqs': np.sum(self._game.custs),
+                'total_wait_time': np.sum(self._game.serve_times - self._game.req_times)
             }
 
         return self.curr_state, reward, self._game.done, {}
@@ -181,9 +177,9 @@ class VrpssrEnv(gym.Env):
             # returning a stack of frames
             state = np.array(self.frame_stack)
             # if we don't have as many frames as would be expected, then we repeat the most recent frame
-            if state.shape[0] < self.n_frames:
-                rep_times = self.n_frames - len(self.frame_stack) # how many frames are we missing?
-                state = np.pad(state, pad_width=[(0,rep_times),(0,0),(0,0)], mode='edge') # repeat the last one that many times
+            if len(state) < self.n_frames:
+                num_reps = self.n_frames - len(state)                                               # how many frames are we missing?
+                state = np.pad(state, pad_width=([(0,num_reps)] + [(0,0)]*state.ndim), mode='edge') # repeat the last one that many times
             return state
 
     def _get_observation_space(self):
@@ -227,7 +223,7 @@ class VrpssrEnv(gym.Env):
         
         elif self.state_type == 'classic':
             # define the max values positions can take
-            space_extent = np.array([self.game_config['shape'][0],self.game_config['shape'][1]]) - 1
+            space_extent = np.array(self.game_config['shape']) - 1
             return gym.spaces.Dict({
                 'car':gym.spaces.Box(low=np.array([0,0]), high=space_extent, dtype=np.int32),
                 'depot':gym.spaces.Box(low=np.array([0,0]), high=space_extent, dtype=np.int32),
@@ -260,7 +256,7 @@ class VrpssrEnv(gym.Env):
             return self._render_pixel(mode="rgb")
         
         elif mode == "feature_layers":
-            return self._render_feature_layers()
+            return self._render_feature_layers(normalize=True)
         
         elif mode == "feature_layers_nonnorm":
             return self._render_feature_layers(normalize=False)
@@ -307,20 +303,19 @@ class VrpssrEnv(gym.Env):
         # drawing order:
         # base, depot, potential, car, active
         
-        # establish canvas, color the base
+        # establish canvas and give it its base color
         canvas = np.ones(
             shape=(self._game.shape if grayscale else (self._game.shape+(3,))),
             dtype=np.int32) * colors['base']
         
         # color the depot
-        canvas[self._game.depot_pos[0],self._game.depot_pos[1],...] = colors['depot']
+        canvas[self._game.depot_pos[0], self._game.depot_pos[1], ...] = colors['depot']
         
         # potential customers
-        for c in self._game.custs.values():
-            if not (c.served or c.hide) and not c.requested: # unrequested and unserved
-                canvas[c.pos[0],c.pos[1],...] = colors['cust_potential']
+        potential_custs = self._game.custs & ~self._game.requested
+        canvas[potential_custs] = colors['cust_potential']
         
-        # car is a 3x3 marking (with its middle hollowed out)
+        # next is the car, a 3x3 marking with its middle hollowed out.
         # when the car is on the edge, its mark will spill out into the buffer,
         # so we'll add that before coloring the car
         buff_width = self._BOARD_BUFFER_WIDTH
@@ -328,16 +323,15 @@ class VrpssrEnv(gym.Env):
         if grayscale:
             canvas = np.pad(canvas, pad_width=((buff_width,buff_width),), mode='constant', constant_values=buff_color)
         else:
-            canvas = np.pad(canvas, pad_width=((buff_width,buff_width),(buff_width,buff_width),(0,0)), mode='constant', constant_values=buff_color)
+            canvas = np.pad(canvas, pad_width=([(buff_width,buff_width)]*2+[(0,0)]), mode='constant', constant_values=buff_color)
 
         # canvas added, color the car's mark
         self._add_car_to_canvas(self._game.car_pos, colors['car'], canvas, buff_width)
 
         # active customers
-        for c in self._game.custs.values():
-            if not c.hide:
-                if not c.served and c.requested: # requested and unserved
-                    canvas[c.pos[0]+buff_width,c.pos[1]+buff_width,...] = colors['cust_active']
+        active_custs = self._game.requested & ~self._game.served
+        canvas_wo_buff = canvas[buff_width:-buff_width, buff_width:-buff_width, ...]
+        canvas_wo_buff[active_custs] = colors['cust_active']
         
         canvas = np.rot90(canvas,k=1,axes=(0,1))
         
@@ -405,21 +399,21 @@ class VrpssrEnv(gym.Env):
         """
         
         canvas = np.zeros([3, self._game.shape[0], self._game.shape[1]], dtype=np.int32) # arrays: car, cust.potential, cust.active; scalar: time
+        
         # Entities
         car = self._game.car_pos
-        depot = self._game.depot_pos
-        canvas[0,car[0],car[1]] = 1
-        for c in self._game.custs.values():
-            # ignore served customers
-            if not (c.served or c.hide):
-                pos = c.pos
-                # active customer
-                if c.requested:
-                    canvas[2,pos[0],pos[1]] = 1
-                # potential customer not yet requesting
-                else:
-                    canvas[1,pos[0],pos[1]] = 1
+        active_custs = self._game.requested & ~self._game.served
+        potential_custs = self._game.custs & ~self._game.requested
         
+        # the car feature layer
+        canvas[0, car[0], car[1]] = 1
+
+        # the potential cust feature layer
+        canvas[1] = potential_custs
+
+        # the active custs
+        canvas[2] = active_custs
+
         if not normalize:
             canvas = canvas * 255
 
@@ -441,26 +435,11 @@ class VrpssrEnv(gym.Env):
                 - and the remaining time ("remaining_time").
         """
         
-        # most info ready to send off, but we must first make the customer grid arrays
-        
-        # get list of current customer positions
-        curr_cust_list = [c.pos for c in self._game.custs.values() if (c.requested and not (c.served or c.hide))]
-        # split into list of x-coords and y-coords
-        curr_cust_coords = ([e[0] for e in curr_cust_list],[e[1] for e in curr_cust_list])
-        # turn into feature-layer-like grids
-        curr_cust_grid = np.zeros(self.game_config['shape'])
-        curr_cust_grid[curr_cust_coords] = 1
-        # same process for potential customers
-        potential_cust_list = [c.pos for c in self._game.custs.values() if (not c.requested and not (c.served or c.hide))]
-        potential_cust_coords = ([e[0] for e in potential_cust_list],[e[1] for e in potential_cust_list])
-        potential_cust_grid = np.zeros(self.game_config['shape'])
-        potential_cust_grid[potential_cust_coords] = 1
-        
         return {
-            'car': np.array(self._game.car_pos),
-            'depot': np.array(self._game.depot_pos),
-            'curr_cust':curr_cust_grid,
-            'potential_cust':potential_cust_grid,
+            'car': np.copy(self._game.car_pos),
+            'depot': np.copy(self._game.depot_pos),
+            'curr_cust':(self._game.requested & ~self._game.served).astype(np.int),
+            'potential_cust':(self._game.custs & ~self._game.requested).astype(np.int),
             'time':np.array([self._game.curr_time]),
             'remaining_time':np.array([self._game.remaining_time])
         }
