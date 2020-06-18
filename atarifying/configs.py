@@ -27,7 +27,7 @@ APEX_CONFIG = {
     
     # APEX
     "num_workers": 16,                                          # DIFF
-    num_envs_per_worker: 8
+    "num_envs_per_worker": 8,
     "rollout_fragment_length": 20,
     "train_batch_size": 512,
     "target_network_update_freq": 50000,
@@ -73,7 +73,7 @@ DQN_DISTRL_CONFIG = {
     "prioritized_replay_alpha": 0.5,
     "final_prioritized_replay_beta": 1.0,
     "prioritized_replay_beta_annealing_timesteps": 2000000,
-    "num_gpus": 0.2,
+    "num_gpus": 1,                                              # DIFF
     "timesteps_per_iteration": 10000,
 
     # Params to consider tweaking:
