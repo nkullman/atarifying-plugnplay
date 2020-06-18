@@ -17,7 +17,7 @@ def dist(p1, p2, axis=None, lnorm=1):
     """
     return np.linalg.norm(np.array(p1)-np.array(p2), axis=axis, ord=lnorm)
 
-def make_image(pixel_array;np.array, filename:str=None) -> None:
+def make_image(pixel_array:np.array, filename:str=None) -> None:
     """Generate the image from the pixel array
 
     Args:
