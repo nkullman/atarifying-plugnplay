@@ -3,7 +3,6 @@ import json
 import math
 
 from atarifying import utils
-from atarifyinggames import vrpssr
 
 def run(game, agent_type, env_config, total_training_steps):
     
@@ -27,7 +26,7 @@ def run(game, agent_type, env_config, total_training_steps):
             logging.info("checkpoint saved at", checkpoint)
 
     # OPTION 2: Could run with tune
-    # agent_config['env'] = "Vrpssr-v0"
+    # agent_config['env'] = "Vrpssr-v0" # TODO in utils, make a get_game_env_name(game)
     # tune.run(
     #     agent_type,
     #     stop={"episode_reward_mean": 200}, # can specify a time limit as well. maybe something like (if mean rwd sucks after X iters, then quit?)
