@@ -84,8 +84,8 @@ class VrpssrGame:
                 added = False
                 while not added:
                     loc = self._locate_customer() # loc is (x,y) tuple
-                    # if proposed customer location is a new one on the board (and not on top of depot)...
-                    if ~self.custs[loc] and np.any(self.depot_pos != loc) and 0 <= loc[0] < self.shape[0] and 0 <= loc[1] < self.shape[1]:
+                    # if proposed customer location is on the board, is not the depot, and is not already customer...
+                    if 0 <= loc[0] < self.shape[0] and 0 <= loc[1] < self.shape[1] and np.any(self.depot_pos != loc) and ~self.custs[loc]:
                         self.custs[loc] = True          # then mark its spot on the custs array
                         self.req_times[loc] = t         # mark its requesting time
                         added = True                    # and mark it as added
