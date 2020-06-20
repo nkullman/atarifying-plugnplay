@@ -75,3 +75,52 @@ def get_game_env(game:str) -> gym.Env:
         return vrpssr.VrpssrEnv
     else:
         return None
+
+def get_ray_config(game:str, agent_type:str) -> dict:
+    """Returns the default ray config for running an `agent_type` agent on `game`.
+    Used to retrieve default resource allocations (memory, num_cpus, num_gpus).
+
+    Args:
+        game: name of the game
+        agent_type: name of the agent
+
+    Returns:
+        Dict (default {}): ray configs
+    """
+    if game.lower() == 'vrpssr':
+        return vrpssr.VrpssrConfigs().CONFIGS['ray'][agent_type]
+    else:
+        return {}
+
+def get_agent_config_mods(game:str, agent_type:str, env_config:dict) -> dict:
+    """Returns the default ray config for running an `agent_type` agent on `game`.
+    Used to retrieve default resource allocations (memory, num_cpus, num_gpus).
+
+    Args:
+        game: name of the game
+        agent_type: name of the agent
+
+    Returns:
+        Dict (default {}): ray configs
+    """
+    mods = {}
+    if game.lower() == 'vrpssr':
+        configs = vrpssr.VrpssrConfigs().CONFIGS['agent']
+        
+        # add config settings that apply to all agents playing the game
+        for k,v in configs["all"].items():
+            mods[k] = v
+        
+        # get config settings that apply to just some agents
+        if agent_type in configs:
+            for k,v in configs[agent_type].items():
+                mods[k] = v
+
+        # get config settings that apply to just some `state_type`s
+        if env_config and 'state_type' in env_config and env_config['state_type'] in configs:
+            for k,v in configs[env_config['state_type']].items():
+                mods[k] = v
+    
+    # Other games...
+    
+    return mods

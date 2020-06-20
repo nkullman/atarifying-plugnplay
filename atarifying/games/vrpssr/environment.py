@@ -442,3 +442,73 @@ class VrpssrEnv(gym.Env):
             'time':np.array([self._game.curr_time]),
             'remaining_time':np.array([self._game.remaining_time])
         }
+
+# class VrpssrFeatureLayerModel():
+
+class VrpssrConfigs():
+    CONFIGS = {
+        
+        "agent": {
+            
+            # for each state_type, additional parameters to facilitate learning
+            "humangray":{
+                # from our previous work on atarifying this problem
+                "conv_filters":[[16,[2,2],1], [32,[4,4],2], [32,[4,4],2]]
+                # ray's default for 42x42 inputs (similar to ours)
+                # see https://github.com/ray-project/ray/blob/master/rllib/models/tf/visionnet_v1.py#L68
+                "conv_filters":[[16,[4,4],2], [32,[4,4],2], [256,[11,11],1]]
+            },
+            
+            "classic":{
+                # Not currently implementing a Ray-supported version of this state_type
+            },
+            
+            "feature_layers":{
+                # Expect to require a custom model.
+                # filters_84x84 = [
+                #     [16, [8, 8], 4],
+                #     [32, [4, 4], 2],
+                #     [256, [11, 11], 1],
+                # ]
+                # filters_42x42 = [
+                #     [16, [4, 4], 2],
+                #     [32, [4, 4], 2],
+                #     [256, [11, 11], 1],
+                # ]
+                #"custom_model":None,
+            },
+            
+            "all":{
+
+            }
+        },
+        
+        "ray":{
+            # for each agent type, the default resources to allocate to Ray
+            "APEX": {
+                "memory": 24e9,
+                "num_cpus": 16,
+                "num_gpus": 1
+            },
+            "DQN": {
+                "memory": 24e9,
+                "num_cpus": 4,
+                "num_gpus": 1
+            },
+            "DQN_RAINBOW": {
+                "memory": 24e9,
+                "num_cpus": 4,
+                "num_gpus": 1
+            },
+            "IMPALA": {
+                "memory": 24e9,
+                "num_cpus": 16,
+                "num_gpus": 1
+            },
+            "PPO": {
+                "memory": 24e9,
+                "num_cpus": 16,
+                "num_gpus": 1
+            }
+        }
+    }
