@@ -25,7 +25,7 @@ def run(game, agent_type, env_config, total_training_steps, user_ray_config):
     for k,v in agent_config_mods.items():
         agent_config[k] = v
 
-    num_training_iters = total_training_steps / utils.get_steps_per_training_iter(agent_type)   # how many training iterations to perform
+    num_training_iters = math.ceil(total_training_steps / utils.get_steps_per_training_iter(agent_type))   # how many training iterations to perform
     checkpoint_every = math.floor(.1*num_training_iters) # save checkpoints approx every 10% of completed training
     
     trainer = utils.get_trainer(agent_type)(env=utils.get_game_env(game), config=agent_config)
