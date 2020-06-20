@@ -2,6 +2,9 @@ import argparse
 import json
 import math
 
+import ray
+from ray.tune.logger import pretty_print
+
 from atarifying import utils
 
 def run(game, agent_type, env_config, total_training_steps):
@@ -25,7 +28,7 @@ def run(game, agent_type, env_config, total_training_steps):
             checkpoint = trainer.save()
             logging.info("checkpoint saved at", checkpoint)
 
-    # OPTION 2: Could run with tune
+    # OPTION 2: Could run with tune: "from ray import tune"
     # agent_config['env'] = "Vrpssr-v0" # TODO in utils, make a get_game_env_name(game)
     # tune.run(
     #     agent_type,

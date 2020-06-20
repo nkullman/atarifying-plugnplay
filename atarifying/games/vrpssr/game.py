@@ -1,7 +1,5 @@
 import numpy as np
 
-from atarifying import utils
-
 class VrpssrGame:
     """Defines the Atari-fied VRPSSR game."""
 

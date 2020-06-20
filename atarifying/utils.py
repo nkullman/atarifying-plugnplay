@@ -53,7 +53,7 @@ def get_trainer(agent_type:str):
         return agents.dqn.DQNTrainer
     
     elif agent_key == 'IMPALA':
-        return agents.dqn.ImpalaTrainer
+        return agents.impala.ImpalaTrainer
     
     elif agent_key == 'PPO':
         return agents.ppo.PPOTrainer
