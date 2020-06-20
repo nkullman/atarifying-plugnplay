@@ -174,12 +174,13 @@ class VrpssrEnv(gym.Env):
         
         else:
             # returning a stack of frames
-            state = np.array(self.frame_stack)
+            state = np.array(self.frame_stack)  # makes the state channels_first
             # if we don't have as many frames as would be expected, then we repeat the most recent frame
             if len(state) < self.n_frames:
                 num_reps = self.n_frames - len(state)                                               # how many frames are we missing?
                 state = np.pad(state, pad_width=([(0,num_reps)] + [(0,0)]*state.ndim), mode='edge') # repeat the last one that many times
-            return state
+            # ray's default is for the state to be channels_last, so transpose
+            return np.transpose(state,(1,2,0))
 
     def _get_observation_space(self):
         """Defines the observation space for the configuration.
@@ -204,7 +205,7 @@ class VrpssrEnv(gym.Env):
         
         elif self.state_type == 'humangray':
             # the last n_frames game boards
-            return gym.spaces.Box(low=0, high=255, shape=((self.n_frames,) + drawn_game_shape), dtype=np.int32)
+            return gym.spaces.Box(low=0, high=255, shape=(drawn_game_shape + (self.n_frames,)), dtype=np.int32)
         
         elif self.state_type == 'feature_layers':
             # (game board for [vehicle, potential & active custs], relative time remaining)
