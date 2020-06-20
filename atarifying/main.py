@@ -22,7 +22,7 @@ def run(game, agent_type, env_config, total_training_steps, user_ray_config):
 
     # make changes according to the specified game/agent/environment
     agent_config_mods = utils.get_agent_config_mods(game, agent_type, env_config)
-    for k,v in agent_config_mods:
+    for k,v in agent_config_mods.items():
         agent_config[k] = v
 
     num_training_iters = total_training_steps / utils.get_steps_per_training_iter(agent_type)   # how many training iterations to perform
