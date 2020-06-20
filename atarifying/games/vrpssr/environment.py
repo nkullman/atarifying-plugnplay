@@ -458,7 +458,7 @@ class VrpssrConfigs():
                 # ray's default for 42x42 inputs (similar to ours)
                 # see https://github.com/ray-project/ray/blob/master/rllib/models/tf/visionnet_v1.py#L68
                 "model":{
-                    "conv_filters":[[16,[4,4],2], [32,[4,4],2], [256,[11,11],1]]
+                    "conv_filters":[[16,[4,4],2], [32,[4,4],2], [256,[8,8],1]]
                 }
             },
             
