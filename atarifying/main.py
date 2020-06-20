@@ -9,11 +9,15 @@ from atarifying import utils
 
 def run(game, agent_type, env_config, total_training_steps):
     
-    ray.init()
-    
     agent_config = utils.get_config(agent_type)
     agent_config['seed'] = env_config.get('seed', None)
     agent_config['env_config'] = env_config
+    
+    # TODO take these from CLI args. For now, just trying to get them to work with known cluster resource requests
+    ray.init(
+        memory=24e9,
+        num_cpus=(4 if 'dqn' in agent_type.lower() else 16),
+        num_gpus=1)
 
     num_training_iters = total_training_steps / utils.get_steps_per_training_iter(agent_type)   # how many training iterations to perform
     checkpoint_every = math.floor(.1*num_training_iters) # save checkpoints approx every 10% of completed training

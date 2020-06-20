@@ -3,8 +3,8 @@ from matplotlib import pyplot as plt
 import numpy as np
 from ray.rllib import agents
 
-from atarifying import games
 from atarifying import configs
+from atarifying.games import vrpssr
 
 def rbg_to_gray(rgb):
     """Convert an RGB image to a grayscale one"""

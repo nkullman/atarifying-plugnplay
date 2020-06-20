@@ -4,7 +4,7 @@ import logging
 import gym
 import numpy as np
 
-from atarifying.games.vrpssr import VrpssrGame
+from atarifying.games import vrpssr
 
 gym.envs.registration.register(
     id='Vrpssr-v0',
@@ -90,7 +90,7 @@ class VrpssrEnv(gym.Env):
         """
         
         # initialize a game
-        self._game = VrpssrGame(self.game_config, self.rng)
+        self._game = vrpssr.VrpssrGame(self.game_config, self.rng)
         self._game.generate_game()
         
         # reset the stack of most recent game frames

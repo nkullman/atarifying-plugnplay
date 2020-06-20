@@ -3,12 +3,12 @@ from sys import argv
 
 import numpy as np
 
-from atarifying.games import vrpssr
 from atarifying import utils
+from atarifying.games.vrpssr import VrpssrEnv
 
 def my_main(env_config):
     
-    env = vrpssr.VrpssrEnv(env_config)
+    env = VrpssrEnv(env_config)
     s = env.reset()
     assert s in env.observation_space
     
