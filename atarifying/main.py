@@ -20,6 +20,7 @@ def run(game, agent_type, env_config, total_training_steps, user_ray_config):
     agent_config = utils.get_config(agent_type)         # default agent config
     agent_config['seed'] = env_config.get('seed', None) # add seed if supplied in env_config
     agent_config['env_config'] = env_config             # set the env_config per CLI arg
+    agent_config['log_level'] = 'INFO'                  # TODO make a CLI for this
 
     # make changes according to the specified game/agent/environment
     agent_config_mods = utils.get_agent_config_mods(game, agent_type, env_config)
@@ -35,9 +36,11 @@ def run(game, agent_type, env_config, total_training_steps, user_ray_config):
         result = trainer.train()
         logging.info(pretty_print(result))
 
-        if i % checkpoint_every == 0 or i == num_training_iters-1:
+        if training_iteration % checkpoint_every == 0 or training_iteration == num_training_iters-1:
             checkpoint = trainer.save()
             logging.info("checkpoint saved at", checkpoint)
+    
+    logging.info("Training complete")
 
     # OPTION 2: Could run with tune: "from ray import tune"
     # agent_config['env'] = "Vrpssr-v0" # TODO in utils, make a get_game_env_name(game)
