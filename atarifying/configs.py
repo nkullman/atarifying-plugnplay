@@ -6,7 +6,7 @@ APEX_CONFIG = {
     # Using pretty much the default tuned config for APE-X Atari
     # (see: https://github.com/ray-project/ray/blob/master/rllib/tuned_examples/dqn/atari-apex.yaml)
     
-    "framework": "tf",
+    # "framework": "tf",
     "double_q": False,
     "dueling": False,
     "num_atoms": 1,
@@ -208,7 +208,7 @@ PPO_CONFIG = {
     # Using pretty much the default tuned config for PPO Atari
     # (see: https://github.com/ray-project/ray/blob/master/rllib/tuned_examples/ppo/atari-ppo.yaml)
     
-    "framework": "tf",
+    # "framework": "tf",
     "lambda": 0.95,
     "kl_coeff": 0.5,
     "clip_rewards": True,
