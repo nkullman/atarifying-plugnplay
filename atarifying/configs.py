@@ -28,7 +28,8 @@ APEX_CONFIG = {
     # APEX
     "num_workers": 16,                                          # DIFF
     "num_envs_per_worker": 8,
-    "rollout_fragment_length": 20,
+    # "rollout_fragment_length": 20,
+    "sample_batch_size": 20,
     "train_batch_size": 512,
     "target_network_update_freq": 50000,
     "timesteps_per_iteration": 25000,
@@ -64,7 +65,8 @@ DQN_DISTRL_CONFIG = {
     "hiddens": [512],
     "learning_starts": 20000,
     "buffer_size": 1000000,
-    "rollout_fragment_length": 4,
+    # "rollout_fragment_length": 4,
+    "sample_batch_size": 4,
     "train_batch_size": 32,
     "exploration_config":{
         "epsilon_timesteps": 200000,
@@ -128,7 +130,8 @@ DQN_RAINBOW_CONFIG = {
     "hiddens": [512],
     "learning_starts": 10000,
     "buffer_size": 50000,
-    "rollout_fragment_length": 4,
+    # "rollout_fragment_length": 4,
+    "sample_batch_size": 4,
     "train_batch_size": 32,
     "exploration_config":{
         "epsilon_timesteps": 2,
@@ -192,7 +195,8 @@ IMPALA_CONFIG = {
     # Using pretty much the default tuned config for IMPALA for Atari
     # (see: https://github.com/ray-project/ray/blob/master/rllib/tuned_examples/impala/atari-impala.yaml)
     
-    "rollout_fragment_length": 50,
+    # "rollout_fragment_length": 50,
+    "sample_batch_size": 50,
     "train_batch_size": 500,
     "num_workers": 16,
     "num_envs_per_worker": 5,
@@ -216,7 +220,8 @@ PPO_CONFIG = {
     "vf_clip_param": 10.0,
     "entropy_coeff": 0.01,
     "train_batch_size": 5000,
-    "rollout_fragment_length": 100,
+    # "rollout_fragment_length": 100,
+    "sample_batch_size": 100,
     "sgd_minibatch_size": 500,
     "num_sgd_iter": 10,
     "num_workers": 16,                                          # DIFF
