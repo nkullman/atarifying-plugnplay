@@ -72,6 +72,6 @@ def get_game_env(game:str) -> gym.Env:
         gym.Env: the class of the gym environment for the game
     """
     if game.lower() == 'vrpssr':
-        return games.vrpssr.VrpssrEnv
+        return vrpssr.VrpssrEnv
     else:
         return None
