@@ -1,5 +1,6 @@
 import argparse
 import json
+import logging
 import math
 
 import ray
@@ -26,7 +27,7 @@ def run(game, agent_type, env_config, total_training_steps, user_ray_config):
         agent_config[k] = v
 
     num_training_iters = math.ceil(total_training_steps / utils.get_steps_per_training_iter(agent_type))   # how many training iterations to perform
-    checkpoint_every = math.floor(.1*num_training_iters) # save checkpoints approx every 10% of completed training
+    checkpoint_every = math.floor(0.1*num_training_iters) # save checkpoints approx every 10% of completed training
     
     trainer = utils.get_trainer(agent_type)(env=utils.get_game_env(game), config=agent_config)
 
