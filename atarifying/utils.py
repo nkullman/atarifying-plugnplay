@@ -76,6 +76,20 @@ def get_game_env(game:str) -> gym.Env:
     else:
         return None
 
+def get_game_env_name(game:str) -> str:
+    """Returns the name of the gym environment for the game.
+
+    Args:
+        game (str): the game for which to get the environment 
+
+    Returns:
+        str: the name of the gym environment for the game
+    """
+    if game.lower() == 'vrpssr':
+        return 'Vrpssr-v0'
+    else:
+        return None
+
 def get_ray_config(game:str, agent_type:str) -> dict:
     """Returns the default ray config for running an `agent_type` agent on `game`.
     Used to retrieve default resource allocations (memory, num_cpus, num_gpus).

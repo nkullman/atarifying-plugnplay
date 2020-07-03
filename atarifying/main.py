@@ -1,55 +1,61 @@
 import argparse
 import json
-import logging
-import math
 
 import ray
-from ray.tune.logger import pretty_print
+from ray import tune
+from ray.tune.schedulers import ASHAScheduler
 
 from atarifying import utils
 
-def run(game, agent_type, env_config, total_training_steps, user_ray_config):
+def run(game, agent_type, env_config, total_training_steps, user_ray_config, upload_dir):
     
-    # initialize ray
-    ray_config = utils.get_ray_config(game, agent_type) # default ray config
-    for k,v in user_ray_config.items():
-        ray_config[k] = v                               # overwritten/supplemented by user-specified config
-    ray.init(**ray_config)
-    
+    ray.init(
+        num_cpus=32,
+        num_gpus=2 # also specify memory?
+        )
+
     # set out the agent/trainer configurations
     agent_config = utils.get_config(agent_type)         # default agent config
+    # agent_config['log_level'] = 'INFO'                # TODO make a CLI for this
     agent_config['seed'] = env_config.get('seed', None) # add seed if supplied in env_config
+    agent_config['env'] = utils.get_game_env_name(game) # set the name of the environment
     agent_config['env_config'] = env_config             # set the env_config per CLI arg
-    agent_config['log_level'] = 'INFO'                  # TODO make a CLI for this
-
-    # make changes according to the specified game/agent/environment
-    agent_config_mods = utils.get_agent_config_mods(game, agent_type, env_config)
-    for k,v in agent_config_mods.items():
-        agent_config[k] = v
-
-    num_training_iters = math.ceil(total_training_steps / utils.get_steps_per_training_iter(agent_type))   # how many training iterations to perform
-    checkpoint_every = math.floor(0.1*num_training_iters) # save checkpoints approx every 10% of completed training
     
-    trainer = utils.get_trainer(agent_type)(env=utils.get_game_env(game), config=agent_config)
+    # we're going to search over state_types to determine which work best (using all other configs default)
+    agent_config['env_config']['state_type'] = tune.grid_search(['classic', 'feature_layers', 'humangray'])
 
-    for training_iteration in range(num_training_iters):
-        result = trainer.train()
-        logging.info(pretty_print(result))
-
-        if training_iteration % checkpoint_every == 0 or training_iteration == num_training_iters-1:
-            checkpoint = trainer.save()
-            logging.info("checkpoint saved at", checkpoint)
+    # if we're doing the humangray state_type, then try both 1 and 4 prev frames
+    agent_config['env_config']['n_frames'] = tune.sample_from(lambda spec: np.random.choice([1,4] if spec.config.state_type == 'humangray' else [1]))
     
-    logging.info("Training complete")
+    # if we're doing humangray, then we have to specify the convolutional layers we want to use
+    # (the others, for better or worse, get flattened into one long input and get some default FCNet)
+    if 'model' not in agent_config:
+        agent_config['model'] = {}
+    agent_config['model']['conv_filters'] = tune.sample_from(lambda spec: np.random.choice(
+        [[[16,[4,4],2], [32,[4,4],2], [256,[8,8],1]]] if spec.config.state_type == 'humangray' 
+        else [None]))
+    
+    # hard code some resource-related params based on how we're running SLURM these days
+    agent_config['num_gpus'] = 1
+    agent_config['num_workers'] = 16
+    agent_config['num_cpus_per_worker'] = 1
 
-    # OPTION 2: Could run with tune: "from ray import tune"
-    # agent_config['env'] = "Vrpssr-v0" # TODO in utils, make a get_game_env_name(game)
-    # tune.run(
-    #     agent_type,
-    #     stop={"episode_reward_mean": 200}, # can specify a time limit as well. maybe something like (if mean rwd sucks after X iters, then quit?)
-    #     config=agent_config, # Nice thing is that you can easily request hparam tuning in the config: tune.grid_search([0.01, 0.001, 0.0001]),
-    #     # Also set checkpoint freq and checkpoint at end
-    # )
+    tune.run(
+        agent_type, # what kind of agent to train
+        name=agent_type, # name of our experiment is the name of the agent we're doing
+        num_samples=5, # total number of sweeps of the state_type grid to do
+        scheduler=ASHAScheduler(metric="episode_reward_mean", mode="max"), # ASHA aggressively kills bad trials
+        config=agent_config,
+        resources_per_trial={ # config for 2 simultaneous trials, where each trial gets 1 GPU and 16 CPUs
+            "cpu":16,
+            "gpu":1
+        },
+        checkpoint_freq=3, # Take checkpoints every 3 training iterations...
+        checkpoint_at_end=True, # (also checkpoint at the end),...
+        keep_checkpoints_num=1, # and only keep the best two checkpoints...
+        checkpoint_score_attr='episode_reward_mean', # as determined by the mean episode reward.
+        upload_dir=upload_dir # when we're done, move the results here
+    )
 
 def _get_args():
     
@@ -59,6 +65,7 @@ def _get_args():
     parser.add_argument("--envconfig", "-e", help="JSON-like environment configuration", type=str, default='{}')
     parser.add_argument("--trainsteps", "-t", help="Number of steps over which to train agent", type=int, default=5e6)
     parser.add_argument("--rayconfig", "-r", help="JSON-like configuration settings for ray", type=str, default='{}')
+    parser.add_argument("--upload-dir", "-u", help="Directory where results should be uploaded", type=str, default='')
 
     args = parser.parse_args()
 
@@ -67,4 +74,4 @@ def _get_args():
 def main():
     
     args = _get_args()
-    run(args.game, args.agent, json.loads(args.envconfig), args.trainsteps, json.loads(args.rayconfig)) 
+    run(args.game, args.agent, json.loads(args.envconfig), args.trainsteps, json.loads(args.rayconfig), args.upload_dir if args.upload_dir else None) 
