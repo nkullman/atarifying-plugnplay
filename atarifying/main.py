@@ -52,10 +52,10 @@ def run(game, agent_type, env_config, total_training_steps, user_ray_config, loc
         num_samples=5, # total number of sweeps of the state_type grid to do
         scheduler=ASHAScheduler(metric="episode_reward_mean", mode="max"), # ASHA aggressively kills bad trials
         config=agent_config,
-        resources_per_trial={ # config for 2 simultaneous trials, where each trial gets 1 GPU and 16 CPUs
-            "cpu":16,
-            "gpu":1
-        },
+        # resources_per_trial={ # config for 2 simultaneous trials, where each trial gets 1 GPU and 16 CPUs
+        #     "cpu":16,
+        #     "gpu":1
+        # }, # apparently, tune doesn't like getting these requests when you make a specification in the config
         checkpoint_freq=3, # Take checkpoints every 3 training iterations...
         checkpoint_at_end=True, # (also checkpoint at the end),...
         keep_checkpoints_num=1, # and only keep the best two checkpoints...
