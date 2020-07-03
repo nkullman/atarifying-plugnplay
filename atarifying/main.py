@@ -11,8 +11,12 @@ def run(game, agent_type, env_config, total_training_steps, user_ray_config, loc
     
     ray.init(
         num_cpus=32,
-        num_gpus=2 # also specify memory?
-        )
+        num_gpus=2) # also specify memory?
+    
+    # to see what resources ray thinks it has available to it
+    print(ray.nodes())
+    print(ray.cluster_resources())
+    
 
     # set out the agent/trainer configurations
     agent_config = utils.get_config(agent_type)         # default agent config
