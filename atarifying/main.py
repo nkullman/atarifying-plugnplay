@@ -1,6 +1,7 @@
 import argparse
 import json
 
+import numpy as np
 import ray
 from ray import tune
 from ray.tune.schedulers import ASHAScheduler
@@ -30,14 +31,14 @@ def run(game, agent_type, env_config, total_training_steps, user_ray_config, loc
     agent_config['env_config']['state_type'] = tune.grid_search(['classic', 'feature_layers', 'humangray'])
 
     # if we're doing the humangray state_type, then try both 1 and 4 prev frames
-    agent_config['env_config']['n_frames'] = tune.sample_from(lambda spec: np.random.choice([1,4] if spec.config.state_type == 'humangray' else [1]))
+    agent_config['env_config']['n_frames'] = tune.sample_from(lambda spec: np.random.choice([1,4] if spec.config.env_config.state_type == 'humangray' else [1]))
     
     # if we're doing humangray, then we have to specify the convolutional layers we want to use
     # (the others, for better or worse, get flattened into one long input and get some default FCNet)
     if 'model' not in agent_config:
         agent_config['model'] = {}
     agent_config['model']['conv_filters'] = tune.sample_from(lambda spec: np.random.choice(
-        [[[16,[4,4],2], [32,[4,4],2], [256,[8,8],1]]] if spec.config.state_type == 'humangray' 
+        [[[16,[4,4],2], [32,[4,4],2], [256,[8,8],1]]] if spec.config.env_config.state_type == 'humangray' 
         else [None]))
     
     # hard code some resource-related params based on how we're running SLURM these days
