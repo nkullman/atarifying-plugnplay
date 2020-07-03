@@ -39,7 +39,7 @@ def run(game, agent_type, env_config, total_training_steps, user_ray_config, loc
         agent_config['model'] = {}
     agent_config['model']['conv_filters'] = tune.sample_from(
         lambda spec: (
-            [[16,[4,4],2], [32,[4,4],2], [256,[8,8],1]] if spec.config.env_config.state_type == 'humangray' else None)
+            [[16,[4,4],2], [32,[4,4],2], [256,[8,8],1]] if spec.config.env_config.state_type == 'humangray' else None))
     
     # hard code some resource-related params based on how we're running SLURM these days
     agent_config['num_gpus'] = 1
