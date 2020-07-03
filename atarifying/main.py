@@ -11,7 +11,8 @@ def run(game, agent_type, env_config, total_training_steps, user_ray_config, loc
     
     ray.init(
         num_cpus=16,
-        num_gpus=1) # also specify memory?
+        num_gpus=1,
+        memory=63000 * 1024 * 1024)
     
     # to see what resources ray thinks it has available to it
     print(ray.nodes())
