@@ -7,7 +7,7 @@ from ray.tune.schedulers import ASHAScheduler
 
 from atarifying import utils
 
-def run(game, agent_type, env_config, total_training_steps, user_ray_config, upload_dir):
+def run(game, agent_type, env_config, total_training_steps, user_ray_config, local_dir):
     
     ray.init(
         num_cpus=32,
@@ -54,7 +54,7 @@ def run(game, agent_type, env_config, total_training_steps, user_ray_config, upl
         checkpoint_at_end=True, # (also checkpoint at the end),...
         keep_checkpoints_num=1, # and only keep the best two checkpoints...
         checkpoint_score_attr='episode_reward_mean', # as determined by the mean episode reward.
-        upload_dir=upload_dir # when we're done, move the results here
+        local_dir=local_dir # where to save results
     )
 
 def _get_args():
@@ -65,7 +65,7 @@ def _get_args():
     parser.add_argument("--envconfig", "-e", help="JSON-like environment configuration", type=str, default='{}')
     parser.add_argument("--trainsteps", "-t", help="Number of steps over which to train agent", type=int, default=5e6)
     parser.add_argument("--rayconfig", "-r", help="JSON-like configuration settings for ray", type=str, default='{}')
-    parser.add_argument("--upload-dir", "-u", help="Directory where results should be uploaded", type=str, default='')
+    parser.add_argument("--local-dir", "-l", help="Directory where results should be saved", type=str, default='')
 
     args = parser.parse_args()
 
@@ -74,4 +74,4 @@ def _get_args():
 def main():
     
     args = _get_args()
-    run(args.game, args.agent, json.loads(args.envconfig), args.trainsteps, json.loads(args.rayconfig), args.upload_dir if args.upload_dir else None) 
+    run(args.game, args.agent, json.loads(args.envconfig), args.trainsteps, json.loads(args.rayconfig), args.local_dir if args.local_dir else None)
