@@ -10,8 +10,8 @@ from atarifying import utils
 def run(game, agent_type, env_config, total_training_steps, user_ray_config, local_dir):
     
     ray.init(
-        num_cpus=32,
-        num_gpus=2) # also specify memory?
+        num_cpus=16,
+        num_gpus=1) # also specify memory?
     
     # to see what resources ray thinks it has available to it
     print(ray.nodes())
