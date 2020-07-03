@@ -37,9 +37,9 @@ def run(game, agent_type, env_config, total_training_steps, user_ray_config, loc
     # (the others, for better or worse, get flattened into one long input and get some default FCNet)
     if 'model' not in agent_config:
         agent_config['model'] = {}
-    agent_config['model']['conv_filters'] = tune.sample_from(lambda spec: np.random.choice(
-        [[[16,[4,4],2], [32,[4,4],2], [256,[8,8],1]]] if spec.config.env_config.state_type == 'humangray' 
-        else [None]))
+    agent_config['model']['conv_filters'] = tune.sample_from(
+        lambda spec: (
+            [[16,[4,4],2], [32,[4,4],2], [256,[8,8],1]] if spec.config.env_config.state_type == 'humangray' else None)
     
     # hard code some resource-related params based on how we're running SLURM these days
     agent_config['num_gpus'] = 1
