@@ -24,7 +24,7 @@ def run(game, agent_type, env_config, total_training_steps, user_ray_config, loc
     agent_config = utils.get_config(agent_type)         # default agent config
     # agent_config['log_level'] = 'INFO'                # TODO make a CLI for this
     agent_config['seed'] = env_config.get('seed', None) # add seed if supplied in env_config
-    agent_config['env'] = utils.get_game_env_name(game) # set the name of the environment
+    agent_config['env'] = utils.get_game_env(game)      # set the name of the environment
     agent_config['env_config'] = env_config             # set the env_config per CLI arg
     
     # we're going to search over state_types to determine which work best (using all other configs default)
