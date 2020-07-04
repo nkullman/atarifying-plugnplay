@@ -43,7 +43,7 @@ def run(game, agent_type, env_config, total_training_steps, user_ray_config, loc
     
     # hard code some resource-related params based on how we're running SLURM these days
     agent_config['num_gpus'] = 1
-    agent_config['num_workers'] = 16
+    agent_config['num_workers'] = 15 # accessing 16 CPUs, which means we can have 15 remote workers
     agent_config['num_cpus_per_worker'] = 1
 
     tune.run(
