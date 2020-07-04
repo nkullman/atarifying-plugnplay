@@ -28,7 +28,7 @@ def run(game, agent_type, env_config, total_training_steps, user_ray_config, loc
     agent_config['env_config'] = env_config             # set the env_config per CLI arg
     
     # we're going to search over state_types to determine which work best (using all other configs default)
-    agent_config['env_config']['state_type'] = tune.grid_search(['classic', 'feature_layers', 'humangray'])
+    agent_config['env_config']['state_type'] = tune.grid_search(['classic', 'feature_layers', 'feature_layers_cube', 'humangray'])
 
     # if we're doing the humangray state_type, then try both 1 and 4 prev frames
     agent_config['env_config']['n_frames'] = tune.sample_from(lambda spec: np.random.choice([1,4] if spec.config.env_config.state_type == 'humangray' else [1]))

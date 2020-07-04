@@ -19,7 +19,7 @@ class VrpssrEnv(gym.Env):
     }
 
     _MOVES = [(-1,0), (0,1), (1,0), (0,-1), (0, 0)]
-    _ONE_FRAME_STATE_TYPES = ['feature_layers', 'feature_layers_nonnorm', 'classic', 'human']
+    _ONE_FRAME_STATE_TYPES = ['feature_layers', 'feature_layers_nonnorm', 'feature_layers_cube', 'classic', 'human']
     _BOARD_BUFFER_WIDTH = 1
     _BOARD_TIMEBAR_HEIGHT = 2
 
@@ -214,6 +214,11 @@ class VrpssrEnv(gym.Env):
                 gym.spaces.Box(low=0, high=1, shape=(1,), dtype=np.float32)
             ))
         
+        elif self.state_type == 'feature_layers_cube':
+            # same as feature_layers, except the time component is also put into an array of the same shape.
+            # this is to simplify NN inputs
+            return gym.spaces.Box(low=0, high=1, shape=(self.game_config['shape'] + (4,)), dtype=np.int32)
+        
         elif self.state_type == 'feature_layers_nonnorm':
             # same as feature_layers, except the values in the feature layers are 0,255 rather than 0,1
             return gym.spaces.Tuple((
@@ -256,10 +261,13 @@ class VrpssrEnv(gym.Env):
             return self._render_pixel(mode="rgb")
         
         elif mode == "feature_layers":
-            return self._render_feature_layers(normalize=True)
+            return self._render_feature_layers(normalize=True, cube=False)
+        
+        elif mode == "feature_layers_cube":
+            return self._render_feature_layers(normalize=True, cube=True)
         
         elif mode == "feature_layers_nonnorm":
-            return self._render_feature_layers(normalize=False)
+            return self._render_feature_layers(normalize=False, cube=False)
         
         elif mode == 'classic':
             return self._render_classic()
@@ -388,17 +396,24 @@ class VrpssrEnv(gym.Env):
             # rgb
             return np.concatenate([np.tile(time_bar[...,None],(1,1,3)),canvas],axis=0)
 
-    def _render_feature_layers(self,normalize=True):
+    def _render_feature_layers(self, normalize=True, cube=False):
         """Provides a feature-layer representation of the current game state
 
         Args:
             normalize (bool, optional): Whether all output values should be in [0,1] (otherwise in [0,255]). Defaults to True.
+            cube (bool, optional): Whether to represent time as an array of the same shape as the other layers
 
         Returns:
+            If cube is False:
             tuple (np.array, float): [feature-layers for the vehicle, potential customers, active customers], the relative time remaining
+            Else:
+                np.array: [feature-layers for the vehicle, potential customers, active customers, time remaining]
         """
         
-        canvas = np.zeros([3, self._game.shape[0], self._game.shape[1]], dtype=np.int32) # arrays: car, cust.potential, cust.active; scalar: time
+        # make the canvas we'll draw on
+        # includes a layer for time if cube. otherwise time is passed as a scalar
+        # otherwise: arrays: car, cust.potential, cust.active; scalar: time
+        canvas = np.zeros([4 if cube else 3, self._game.shape[0], self._game.shape[1]], dtype=np.int32)
         
         # Entities
         car = self._game.car_pos
@@ -414,9 +429,20 @@ class VrpssrEnv(gym.Env):
         # the active custs
         canvas[2] = active_custs
 
+        # the time
+        if cube:
+            time_vector = (np.arange(canvas.shape[2]) < ((self._game.remaining_time/self._game.game_length) * canvas.shape[2])).astype(np.int32)
+            canvas[3] = np.tile(time_vector,(canvas.shape[1],1))
+
         if not normalize:
             canvas = canvas * 255
 
+        if cube:
+            # since cube is intended to make the feature_layers state easily interpreted by vision networks (CNNs),
+            # change canvas from channels_first to channels_last, as appears to be the default for many libraries
+            return np.transpose(canvas, (1,2,0))
+        
+        else:
         return canvas, [self._game.remaining_time / self._game.game_length]
 
     def _render_classic(self):
