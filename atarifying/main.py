@@ -29,17 +29,21 @@ def run(game, agent_type, env_config, total_training_steps, user_ray_config, loc
     
     # we're going to search over state_types to determine which work best (using all other configs default)
     agent_config['env_config']['state_type'] = tune.grid_search(['classic', 'feature_layers', 'feature_layers_cube', 'humangray'])
+    # reshape state so that we can leverage the pre-determined model types
+    agent_config['env_config']['reshape_state'] = True
 
     # if we're doing the humangray state_type, then try both 1 and 4 prev frames
-    agent_config['env_config']['n_frames'] = tune.sample_from(lambda spec: np.random.choice([1,4] if spec.config.env_config.state_type == 'humangray' else [1]))
+    agent_config['env_config']['n_frames'] = tune.sample_from(lambda spec: np.random.choice([1,4]) if spec.config.env_config.state_type == 'humangray' else 1)
     
-    # if we're doing humangray, then we have to specify the convolutional layers we want to use
-    # (the others, for better or worse, get flattened into one long input and get some default FCNet)
-    if 'model' not in agent_config:
-        agent_config['model'] = {}
-    agent_config['model']['conv_filters'] = tune.sample_from(
-        lambda spec: (
-            [[16,[4,4],2], [32,[4,4],2], [256,[8,8],1]] if spec.config.env_config.state_type == 'humangray' else None))
+    # if we're not reshaping the state to something with an automatic NN, then specify model params here
+    if not agent_config['env_config']['reshape_state']:
+        # specifically, if doing humangray, then we have to specify the convolutional layers we want to use
+        # (the others, for better or worse, get flattened into one long input and get some default FCNet)
+        if 'model' not in agent_config:
+            agent_config['model'] = {}
+        agent_config['model']['conv_filters'] = tune.sample_from(
+            lambda spec: (
+                [[16,[4,4],2], [32,[4,4],2], [256,[8,8],1]] if spec.config.env_config.state_type == 'humangray' else None))
     
     # hard code some resource-related params based on how we're running SLURM these days
     agent_config['num_gpus'] = 1

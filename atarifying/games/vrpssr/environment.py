@@ -22,6 +22,7 @@ class VrpssrEnv(gym.Env):
     _ONE_FRAME_STATE_TYPES = ['feature_layers', 'feature_layers_nonnorm', 'feature_layers_cube', 'classic', 'human']
     _BOARD_BUFFER_WIDTH = 1
     _BOARD_TIMEBAR_HEIGHT = 2
+    _PREDEFINED_MODEL_SHAPES = [(42,42),(84,84)]
 
     def __init__(self, env_config):
         """Initialize an Environment that is compatible with a game representing
@@ -34,6 +35,7 @@ class VrpssrEnv(gym.Env):
         {
             'state_type': 'feature_layers',     # what type of state the agent should receive
             'n_frames': 1,                      # how many previous videogame 'frames' to include in the state (NOTE these are not displayed in state)
+            'reshape_state': False              # automatically reshape state so that it can use pre-built models
             'seed': null,                       # seed for game randomness
             'shape': (32,32),                   # the size of the game board (width, height)
             'depot': (16,16),                   # the location of the depot
@@ -46,7 +48,7 @@ class VrpssrEnv(gym.Env):
         # TODO add param for how much time one step consumes
         """
 
-        self.state_type = env_config.get('state_type', 'feature_layers')
+        self.state_type = env_config.get('state_type', 'feature_layers_cube')
         self.seed = env_config.get('seed', None)
         self.rng = np.random.RandomState(seed=self.seed)
         self.n_frames = env_config.get('n_frames', 1)
@@ -59,6 +61,7 @@ class VrpssrEnv(gym.Env):
         # for example, in the 'classic' render mode, a game frame is a dictionary of relevant data for an agent
         # to make a decision: vehicle location, current time, depot location, locations of current (active) requests,
         # and locations of potential requests
+        self.reshape_state = env_config.get('reshape_state', False)
         
         
         self.game_config = {
@@ -182,6 +185,15 @@ class VrpssrEnv(gym.Env):
             # ray's default is for the state to be channels_last, so transpose
             return np.transpose(state,(1,2,0))
 
+    def _get_mod_shape(self, shape):
+        if self.reshape_state:
+            for m_shape in self._PREDEFINED_MODEL_SHAPES:
+                if shape <= m_shape:
+                    return m_shape
+            return None
+        else:
+            return None
+    
     def _get_observation_space(self):
         """Defines the observation space for the configuration.
 
@@ -192,54 +204,93 @@ class VrpssrEnv(gym.Env):
             gym.Space: The observation space
         """
 
+        # game shape is the original game shape
+        # mod game shape is the shape of the original game but with the black buffer
+        # human game shape is the shape of the screen with the border and time bar and stuff
+        # mod human game shape is the shape of the modified (black buffered) human game shape
+
+        game_shape = self.game_config['shape']
+
+        mod_game_shape = self._get_mod_shape(game_shape) or game_shape
+        
         # for drawn state types (human and humangray), the shape needs to include the border and time bar
         # first, shape tuple needs to be flipped since we rotate the image prior to rendering
-        drawn_game_size = np.flip(self.game_config['shape'])
-        drawn_game_size += 2*self._BOARD_BUFFER_WIDTH                           # add border pixels
-        drawn_game_size[0] = drawn_game_size[0] + self._BOARD_TIMEBAR_HEIGHT    # and time bar pixels
-        drawn_game_shape = tuple(drawn_game_size)
+        human_game_shape = np.flip(game_shape)
+        human_game_shape += 2*self._BOARD_BUFFER_WIDTH                           # add border pixels
+        human_game_shape[0] = human_game_shape[0] + self._BOARD_TIMEBAR_HEIGHT    # and time bar pixels
+        human_game_shape = tuple(human_game_shape)
+        
+        mod_human_game_shape = self._get_mod_shape(human_game_shape) or human_game_shape
 
         if self.state_type == 'human':
             # game board, with a layer for RGB
-            return gym.spaces.Box(low=0, high=255, shape=(drawn_game_shape + (3,)), dtype=np.int32)
+            return gym.spaces.Box(low=0, high=255, shape=(mod_human_game_shape + (3,)), dtype=np.int32)
         
         elif self.state_type == 'humangray':
             # the last n_frames game boards
-            return gym.spaces.Box(low=0, high=255, shape=(drawn_game_shape + (self.n_frames,)), dtype=np.int32)
+            # responds to drawn_game_shape if 
+            return gym.spaces.Box(low=0, high=255, shape=(mod_human_game_shape + (self.n_frames,)), dtype=np.int32)
         
         elif self.state_type == 'feature_layers':
             # (game board for [vehicle, potential & active custs], relative time remaining)
+            # note: is unaffected by auto reshaping
             return gym.spaces.Tuple((
-                gym.spaces.Box(low=0, high=1, shape=((3,) + self.game_config['shape']), dtype=np.int32),
+                gym.spaces.Box(low=0, high=1, shape=((3,) + game_shape), dtype=np.int32),
                 gym.spaces.Box(low=0, high=1, shape=(1,), dtype=np.float32)
             ))
         
         elif self.state_type == 'feature_layers_cube':
             # same as feature_layers, except the time component is also put into an array of the same shape.
             # this is to simplify NN inputs
-            return gym.spaces.Box(low=0, high=1, shape=(self.game_config['shape'] + (4,)), dtype=np.int32)
+            return gym.spaces.Box(low=0, high=1, shape=(mod_game_shape + (4,)), dtype=np.int32)
         
         elif self.state_type == 'feature_layers_nonnorm':
             # same as feature_layers, except the values in the feature layers are 0,255 rather than 0,1
             return gym.spaces.Tuple((
-                gym.spaces.Box(low=0, high=255, shape=((3,) + self.game_config['shape']), dtype=np.int32),
+                gym.spaces.Box(low=0, high=255, shape=((3,) + game_shape), dtype=np.int32),
                 gym.spaces.Box(low=0, high=1, shape=(1,), dtype=np.float32)
             ))
         
         elif self.state_type == 'classic':
             # define the max values positions can take
-            space_extent = np.array(self.game_config['shape']) - 1
+            space_extent = np.array(game_shape) - 1
             return gym.spaces.Dict({
                 'car':gym.spaces.Box(low=np.array([0,0]), high=space_extent, dtype=np.int32),
                 'depot':gym.spaces.Box(low=np.array([0,0]), high=space_extent, dtype=np.int32),
-                'curr_cust':gym.spaces.Box(low=0, high=1, shape=self.game_config['shape'], dtype=np.int32),
-                'potential_cust':gym.spaces.Box(low=0, high=1, shape=self.game_config['shape'], dtype=np.int32),
+                'curr_cust':gym.spaces.Box(low=0, high=1, shape=game_shape, dtype=np.int32),
+                'potential_cust':gym.spaces.Box(low=0, high=1, shape=game_shape, dtype=np.int32),
                 'time':gym.spaces.Box(low=0, high=self.game_config['game_length'], shape=(1,), dtype=np.float32),
                 'remaining_time':gym.spaces.Box(low=0, high=self.game_config['game_length'], shape=(1,), dtype=np.float32)
             })
         
         else:
             raise ValueError(f"Unsupported state type: {self.state_type}")
+
+    def _reshape_render(self, render):
+
+        assert (len(render.shape) == 2) or (len(render.shape) == 3 and render.shape[0] >= render.shape[-1]),(
+            "Can only reshape 2D or stacked images, where stacked images are channels_last")
+        
+        # determine the base shape of the render and where it starts
+        if len(render.shape) == 2:
+            return np.pad(
+                render,
+                pad_width=[
+                    (0, self.observation_space.shape[0] - render.shape[0]),
+                    (0,self.observation_space.shape[1] - render.shape[1])],
+                mode='constant',
+                constant_values=0
+            )
+        else:
+            return np.pad(
+                render,
+                pad_width=[
+                    (0, self.observation_space.shape[0] - render.shape[0]),
+                    (0, self.observation_space.shape[1] - render.shape[1]),
+                    (0, 0)],
+                mode='constant',
+                constant_values=0
+            )
 
     def _show_game(self, mode):
         """Provide a depiction of the current game state.
@@ -255,16 +306,16 @@ class VrpssrEnv(gym.Env):
         """
 
         if mode == "humangray":
-            return self._render_pixel(mode='grayscale')
+            return self._reshape_render(self._render_pixel(mode='grayscale'))
         
         elif mode == "human":
-            return self._render_pixel(mode="rgb")
+            return self._reshape_render(self._render_pixel(mode="rgb"))
         
         elif mode == "feature_layers":
             return self._render_feature_layers(normalize=True, cube=False)
         
         elif mode == "feature_layers_cube":
-            return self._render_feature_layers(normalize=True, cube=True)
+            return self._reshape_render(self._render_feature_layers(normalize=True, cube=True))
         
         elif mode == "feature_layers_nonnorm":
             return self._render_feature_layers(normalize=False, cube=False)
@@ -405,7 +456,7 @@ class VrpssrEnv(gym.Env):
 
         Returns:
             If cube is False:
-            tuple (np.array, float): [feature-layers for the vehicle, potential customers, active customers], the relative time remaining
+                tuple (np.array, float): [feature-layers for the vehicle, potential customers, active customers], the relative time remaining
             Else:
                 np.array: [feature-layers for the vehicle, potential customers, active customers, time remaining]
         """
@@ -443,7 +494,7 @@ class VrpssrEnv(gym.Env):
             return np.transpose(canvas, (1,2,0))
         
         else:
-        return canvas, [self._game.remaining_time / self._game.game_length]
+            return canvas, [self._game.remaining_time / self._game.game_length]
 
     def _render_classic(self):
         """Provides a "classic" representation of the current game state.
