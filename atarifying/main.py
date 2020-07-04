@@ -53,7 +53,7 @@ def run(game, agent_type, env_config, total_training_steps, user_ray_config, loc
     tune.run(
         agent_type, # what kind of agent to train
         name=agent_type, # name of our experiment is the name of the agent we're doing
-        num_samples=5, # total number of sweeps of the state_type grid to do
+        num_samples=2, # total number of sweeps of the state_type grid to do
         scheduler=ASHAScheduler(metric="episode_reward_mean", mode="max"), # ASHA aggressively kills bad trials
         config=agent_config,
         # resources_per_trial={ # config for 2 simultaneous trials, where each trial gets 1 GPU and 16 CPUs
@@ -62,7 +62,7 @@ def run(game, agent_type, env_config, total_training_steps, user_ray_config, loc
         # }, # apparently, tune doesn't like getting these requests when you make a specification in the config
         checkpoint_freq=3, # Take checkpoints every 3 training iterations...
         checkpoint_at_end=True, # (also checkpoint at the end),...
-        keep_checkpoints_num=1, # and only keep the best two checkpoints...
+        keep_checkpoints_num=3, # and only keep the best two checkpoints...
         checkpoint_score_attr='episode_reward_mean', # as determined by the mean episode reward.
         local_dir=local_dir # where to save results
     )
