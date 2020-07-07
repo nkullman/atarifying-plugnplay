@@ -181,7 +181,7 @@ class VrpssrEnv(gym.Env):
             # if we don't have as many frames as would be expected, then we repeat the most recent frame
             if len(state) < self.n_frames:
                 num_reps = self.n_frames - len(state)                                               # how many frames are we missing?
-                state = np.pad(state, pad_width=([(0,num_reps)] + [(0,0)]*state.ndim), mode='edge') # repeat the last one that many times
+                state = np.pad(state, pad_width=([(0,num_reps)] + [(0,0)]*(state.ndim-1)), mode='edge')
             # ray's default is for the state to be channels_last, so transpose
             return np.transpose(state,(1,2,0))
 
