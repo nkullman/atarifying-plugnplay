@@ -11,9 +11,9 @@ from atarifying import utils
 def run(game, agent_type, env_config, total_training_steps, user_ray_config, local_dir):
     
     ray.init(
-        num_cpus=16,
-        num_gpus=1,
-        memory=63000 * 1024 * 1024)
+        num_cpus=32,
+        num_gpus=2,
+        memory=115000 * 1024 * 1024) # cluster nodes have ~128 GB memory. Will be using all of it, but budget 10% extra
     
     # to see what resources ray thinks it has available to it
     print(ray.nodes())
