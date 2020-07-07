@@ -26,9 +26,10 @@ APEX_CONFIG = {
     "num_gpus": 1,
     
     # APEX
-    "num_workers": 16,                                          # DIFF
+    "num_workers": 15,                                          # DIFF
     "num_envs_per_worker": 8,
     # "rollout_fragment_length": 20,
+    # ^^ new name for param. Compute Canada has older Ray version using this param name:
     "sample_batch_size": 20,
     "train_batch_size": 512,
     "target_network_update_freq": 50000,
@@ -66,6 +67,7 @@ DQN_DISTRL_CONFIG = {
     "learning_starts": 20000,
     "buffer_size": 1000000,
     # "rollout_fragment_length": 4,
+    # ^^ new name for param. Compute Canada has older Ray version using this param name:
     "sample_batch_size": 4,
     "train_batch_size": 32,
     "exploration_config":{
@@ -198,7 +200,7 @@ IMPALA_CONFIG = {
     # "rollout_fragment_length": 50,
     "sample_batch_size": 50,
     "train_batch_size": 500,
-    "num_workers": 16,
+    "num_workers": 15,                      # DIFF
     "num_envs_per_worker": 5,
     "clip_rewards": True,
     "lr_schedule": [
@@ -224,7 +226,7 @@ PPO_CONFIG = {
     "sample_batch_size": 100,
     "sgd_minibatch_size": 500,
     "num_sgd_iter": 10,
-    "num_workers": 16,                                          # DIFF
+    "num_workers": 15,                                          # DIFF
     "num_envs_per_worker": 5,
     "batch_mode": "truncate_episodes",
     "observation_filter": "NoFilter",
