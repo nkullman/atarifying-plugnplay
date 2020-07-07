@@ -33,7 +33,7 @@ def run(game, agent_type, env_config, total_training_steps, user_ray_config, loc
     agent_config['env_config']['reshape_state'] = True
 
     # if we're doing the humangray state_type, then try both 1 and 4 prev frames
-    agent_config['env_config']['n_frames'] = tune.sample_from(lambda spec: np.random.choice([1,4]) if spec.config.env_config.state_type == 'humangray' else 1)
+    agent_config['env_config']['n_frames'] = tune.sample_from(lambda spec: int(np.random.choice([1,4])) if spec.config.env_config.state_type == 'humangray' else 1)
     
     # if we're not reshaping the state to something with an automatic NN, then specify model params here
     if not agent_config['env_config']['reshape_state']:
