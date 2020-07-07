@@ -13,7 +13,9 @@ def run(game, agent_type, env_config, total_training_steps, user_ray_config, loc
     ray.init(
         num_cpus=32,
         num_gpus=2,
-        memory=115000 * 1024 * 1024) # cluster nodes have ~128 GB memory. Will be using all of it, but budget 10% extra
+        memory=90000 * 1024 * 1024, # cluster nodes have ~128 GB memory. Will be using all of it, but budget 10% extra
+        object_store_memory = 32000 * 1024 * 1024, # give a bigger object store memory, since I think we're having issues with this now
+        redis_max_memory = 5000 * 1024 * 1024)
     
     # to see what resources ray thinks it has available to it
     print(ray.nodes())
