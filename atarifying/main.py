@@ -55,8 +55,13 @@ def run(game, agent_type, env_config, total_training_steps, user_ray_config, loc
     tune.run(
         agent_type, # what kind of agent to train
         name=agent_type, # name of our experiment is the name of the agent we're doing
-        num_samples=2, # total number of sweeps of the state_type grid to do
-        scheduler=ASHAScheduler(metric="episode_reward_mean", mode="max"), # ASHA aggressively kills bad trials
+        num_samples=4, # total number of sweeps of the state_type grid to do
+        scheduler=ASHAScheduler( # ASHA aggressively kills bad trials
+            time_attr='timesteps_total', # measure trials' duration by training steps
+            max_t=float(5e6), # let trials go for a max of 5,000,000 training steps
+            grace_period=float(2.5e5), # let trials go for at least 250,000 steps before killing them
+            metric="episode_reward_mean", # measure trials' success by mean episode reward
+            mode="max"), # (which we're trying to max)
         config=agent_config,
         # resources_per_trial={ # config for 2 simultaneous trials, where each trial gets 1 GPU and 16 CPUs
         #     "cpu":16,
